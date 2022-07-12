@@ -2274,7 +2274,6 @@ extern jmp_buf m68ki_bus_error_jmp_buf;
 static inline void m68ki_exception_bus_error(m68ki_cpu_core *state)
 {
 	int i;
-
 	/* If we were processing a bus error, address error, or reset,
 	 * this is a catastrophic failure.
 	 * Halt the CPU
@@ -2293,7 +2292,6 @@ static inline void m68ki_exception_bus_error(m68ki_cpu_core *state)
 	for (i = 15; i >= 0; i--){
 		REG_DA[i] = REG_DA_SAVE[i];
 	}
-
 	uint sr = m68ki_init_exception(state);
 	m68ki_stack_frame_1000(state, REG_PPC, sr, EXCEPTION_BUS_ERROR);
 
@@ -2437,6 +2435,8 @@ static inline void m68ki_exception_interrupt(m68ki_cpu_core *state, uint int_lev
 	uint vector;
 	uint sr;
 	uint new_pc;
+
+//	printf("Doing interrupt %d\n", int_level );
 
 	#if M68K_EMULATE_ADDRESS_ERROR == OPT_ON
 	if(CPU_TYPE_IS_000(CPU_TYPE))

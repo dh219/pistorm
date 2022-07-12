@@ -83,6 +83,8 @@ int mem_fd_gpclk;
 int irq;
 int gayleirq;
 
+extern uint8_t fc;
+
 #define MUSASHI_HAX
 
 #ifdef MUSASHI_HAX
@@ -104,7 +106,7 @@ extern int m68ki_remaining_cycles;
 
 #define NOP asm("nop"); asm("nop"); asm("nop"); asm("nop");
 
-#define DEBUG_EMULATOR
+//#define DEBUG_EMULATOR
 #ifdef DEBUG_EMULATOR
 #define DEBUG printf
 #else
@@ -121,6 +123,8 @@ uint64_t trig_irq = 0, serv_irq = 0;
 uint16_t irq_delay = 0;
 unsigned int amiga_reset=0, amiga_reset_last=0;
 unsigned int do_reset=0;
+
+void call_berr(uint16_t);
 
 void *ipl_task(void *args) {
   printf("IPL thread running\n");
@@ -220,9 +224,8 @@ static inline void m68k_execute_bef(m68ki_cpu_core *state, int num_cycles)
 		/* Return point if we had an address error */
 		m68ki_set_address_error_trap(state); /* auto-disable (see m68kcpu.h) */
 
-#ifdef M68K_BUSERR_THING
 		m68ki_check_bus_error_trap();
-#endif
+//    printf("checking bus error\n");
 
 		/* Main loop.  Keep going until we run out of clock cycles */
 		do
@@ -240,12 +243,9 @@ static inline void m68k_execute_bef(m68ki_cpu_core *state, int num_cycles)
 			REG_PPC = REG_PC;
 
 			/* Record previous D/A register state (in case of bus error) */
-//#define M68K_BUSERR_THING
-#ifdef M68K_BUSERR_THING
 			for (int i = 15; i >= 0; i--){
 				REG_DA_SAVE[i] = REG_DA[i];
 			}
-#endif
 
 			/* Read an instruction and call its handler */
 			REG_IR = m68ki_read_imm_16(state);
@@ -272,12 +272,15 @@ void *cpu_task() {
   state->gpio = gpio;
 	m68k_pulse_reset(state);
 
+  realtime_disassembly = 0;
+
 cpu_loop:
   if (mouse_hook_enabled) {
     get_mouse_status(&mouse_dx, &mouse_dy, &mouse_buttons, &mouse_extra);
   }
 
   if (realtime_disassembly && (do_disasm || cpu_emulation_running)) {
+
     m68k_disassemble(disasm_buf, m68k_get_reg(NULL, M68K_REG_PC), cpu_type);
     printf("REGA: 0:$%.8X 1:$%.8X 2:$%.8X 3:$%.8X 4:$%.8X 5:$%.8X 6:$%.8X 7:$%.8X\n", m68k_get_reg(NULL, M68K_REG_A0), m68k_get_reg(NULL, M68K_REG_A1), m68k_get_reg(NULL, M68K_REG_A2), m68k_get_reg(NULL, M68K_REG_A3), \
             m68k_get_reg(NULL, M68K_REG_A4), m68k_get_reg(NULL, M68K_REG_A5), m68k_get_reg(NULL, M68K_REG_A6), m68k_get_reg(NULL, M68K_REG_A7));
@@ -319,7 +322,7 @@ cpu_loop:
     usleep(1000000); // 1sec
     rtg_on=0;
 //    while(amiga_reset==0);
-//    printf("CPU emulation reset.\n");
+    printf("CPU emulation reset.\n");
   }
 
   if (mouse_hook_enabled && (mouse_extra != 0x00)) {
@@ -436,7 +439,7 @@ key_loop:
       }
       if (c == 'R') {
         cpu_pulse_reset();
-        //m68k_pulse_reset();
+	//m68k_pulse_reset();
         printf("CPU emulation reset.\n");
       }
       if (c == 'q') {
@@ -525,6 +528,9 @@ int main(int argc, char *argv[]) {
   int g;
 
   ps_setup_protocol();
+  set_berr_callback( &call_berr );
+  
+  fc = 6;
 
   //const struct sched_param priority = {99};
 
@@ -663,6 +669,7 @@ switch_config:
   m68k_init();
   printf("Setting CPU type to %d.\n", cpu_type);
 	m68k_set_cpu_type(&m68ki_cpu, cpu_type);
+  m68k_set_int_ack_callback(&cpu_irq_ack);
   cpu_pulse_reset();
 
   pthread_t ipl_tid = 0, cpu_tid, kbd_tid;
@@ -734,12 +741,25 @@ void cpu_pulse_reset(void) {
   if (cfg->platform->handle_reset)
     cfg->platform->handle_reset(cfg);
 
-	m68k_pulse_reset(state);
+//  int status = ps_read_status_reg();
+  int pin_reset = *(gpio + 13) & ( 1 << PIN_RESET );
+  printf("pin_reset: %x\n", pin_reset );
+
+  if( !pin_reset ) {
+	  m68k_pulse_reset(state);
+  }
 }
 
 unsigned int cpu_irq_ack(int level) {
-  //printf("cpu irq ack\n");
-  return 24 + level;
+  DEBUG("cpu_irq_ack()\n");
+  if( level == 2 || level == 4 ) { // autovectors
+  	return 24 + level;
+  }
+  //  perform ack and get vector
+  fc = 0x7;
+  uint16_t vec = ( ps_read_16(0xfffff0 + (level << 1) ) ) & 0xff; // despite reading 16 bits, only the lower 8 are the vector
+  DEBUG("vector returned: %x\n", vec );
+  return vec;
 }
 
 static unsigned int target = 0;
@@ -947,8 +967,8 @@ unsigned int m68k_read_memory_8(unsigned int address) {
     return platform_res;
   }
 
-  if (address & 0xFF000000)
-    return 0;
+//  if (address & 0xFF000000)
+//    return 0;
 
   return (unsigned int)ps_read_8((uint32_t)address);
 }
@@ -958,8 +978,8 @@ unsigned int m68k_read_memory_16(unsigned int address) {
     return platform_res;
   }
 
-  if (address & 0xFF000000)
-    return 0;
+//  if (address & 0xFF000000)
+//    return 0;
 
   if (address & 0x01) {
     return ((ps_read_8(address) << 8) | ps_read_8(address + 1));
@@ -972,8 +992,8 @@ unsigned int m68k_read_memory_32(unsigned int address) {
     return platform_res;
   }
 
-  if (address & 0xFF000000)
-    return 0;
+//  if (address & 0xFF000000)
+//    return 0;
 
   if (address & 0x01) {
     uint32_t c = ps_read_8(address);
@@ -1052,7 +1072,7 @@ static inline int32_t platform_write_check(uint8_t type, uint32_t addr, uint32_t
           if (val & 0x4000 && enable) {
             ipl_enabled[7] = 1;
           }
-          //printf("Interrupts enabled: M:%d 0-6:%d%d%d%d%d%d\n", ipl_enabled[7], ipl_enabled[6], ipl_enabled[5], ipl_enabled[4], ipl_enabled[3], ipl_enabled[2], ipl_enabled[1]);
+//          printf("Interrupts enabled: M:%d 0-6:%d%d%d%d%d%d\n", ipl_enabled[7], ipl_enabled[6], ipl_enabled[5], ipl_enabled[4], ipl_enabled[3], ipl_enabled[2], ipl_enabled[1]);
           return 0;
           break;
         }
@@ -1130,8 +1150,8 @@ void m68k_write_memory_8(unsigned int address, unsigned int value) {
   if (platform_write_check(OP_TYPE_BYTE, address, value))
     return;
 
-  if (address & 0xFF000000)
-    return;
+//  if (address & 0xFF000000)
+//    return;
 
   ps_write_8((uint32_t)address, value);
   return;
@@ -1141,8 +1161,8 @@ void m68k_write_memory_16(unsigned int address, unsigned int value) {
   if (platform_write_check(OP_TYPE_WORD, address, value))
     return;
 
-  if (address & 0xFF000000)
-    return;
+//  if (address & 0xFF000000)
+//    return;
 
   if (address & 0x01) {
     ps_write_8(value & 0xFF, address);
@@ -1158,8 +1178,8 @@ void m68k_write_memory_32(unsigned int address, unsigned int value) {
   if (platform_write_check(OP_TYPE_LONGWORD, address, value))
     return;
 
-  if (address & 0xFF000000)
-    return;
+//  if (address & 0xFF000000)
+//    return;
 
   if (address & 0x01) {
     ps_write_8(value & 0xFF, address);
@@ -1172,3 +1192,21 @@ void m68k_write_memory_32(unsigned int address, unsigned int value) {
   ps_write_16(address + 2, value);
   return;
 }
+
+
+void cpu_set_fc(unsigned int _fc) {
+	fc = _fc;
+  //printf("cpu_set_fc(): %x\n", _fc);
+}
+
+void call_berr(uint16_t status) {
+	if( status & 0x0001 ) {
+	        m68ki_cpu_core *state = &m68ki_cpu;
+		printf("call_berr()\n");
+		m68k_pulse_bus_error(state);
+	}
+	M68K_END_TIMESLICE
+	NOP
+}
+
+

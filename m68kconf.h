@@ -91,8 +91,8 @@
  * auto-clear when the interrupt is serviced.
  */
 #define M68K_EMULATE_INT_ACK        OPT_SPECIFY_HANDLER
-#define M68K_INT_ACK_CALLBACK(...)  0xFFFFFFFF
-
+//#define M68K_INT_ACK_CALLBACK(...)  0xFFFFFFFF
+#define M68K_INT_ACK_CALLBACK(level) cpu_irq_ack(level)
 
 /* If ON, CPU will call the breakpoint acknowledge callback when it encounters
  * a breakpoint instruction and it is running a 68010+.
@@ -148,7 +148,7 @@
  * want to properly emulate the m68010 or higher. (moves uses function codes
  * to read/write data from different address spaces)
  */
-#define M68K_EMULATE_FC             OPT_OFF
+#define M68K_EMULATE_FC             OPT_SPECIFY_HANDLER
 #define M68K_SET_FC_CALLBACK(A)     cpu_set_fc(A)
 
 /* If ON, CPU will call the pc changed callback when it changes the PC by a

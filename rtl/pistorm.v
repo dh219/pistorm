@@ -25,12 +25,12 @@ module pistorm(
     output reg      LTCH_D_WR_OE_n,
 
     input           M68K_CLK,
-    output  reg [2:0] M68K_FC,
+    output   [2:0] M68K_FC,
 
-    output reg      M68K_AS_n,
-    output reg      M68K_UDS_n,
-    output reg      M68K_LDS_n,
-    output reg      M68K_RW,
+    output       M68K_AS_n,
+    output       M68K_UDS_n,
+    output       M68K_LDS_n,
+    output       M68K_RW,
 
     input           M68K_DTACK_n,
     input           M68K_BERR_n,
@@ -45,7 +45,7 @@ module pistorm(
     inout           M68K_HALT_n,
 
     input           M68K_BR_n,
-    output reg      M68K_BG_n,
+    output       M68K_BG_n,
     input           M68K_BGACK_n,
     input           M68K_C1,
     input           M68K_C3,
@@ -69,14 +69,15 @@ module pistorm(
 
     PI_RESET <= 1'b0;
 
-    M68K_FC <= 3'd0;
+    FC_INT <= 3'b111;
 
-    M68K_RW <= 1'b1;
+    RW_INT <= 1'b1;
 
-    M68K_E <= 1'b0;
+    M68K_E <= 1'b1;
     M68K_VMA_n <= 1'b1;
 
-    M68K_BG_n <= 1'b1;
+    BG_INT <= 1'b1;
+	 AS_INT <= 1'b1;
   end
 
   reg [1:0] rd_sync;
@@ -93,15 +94,22 @@ module pistorm(
   reg [15:0] data_out;
   assign PI_D = PI_A == REG_STATUS && PI_RD ? data_out : 16'bz;
 
+  reg berr_seen =12'b0;
   always @(posedge c200m) begin
+	 if( !M68K_BERR_n ) begin
+		berr_seen <= 1'b1;
+	 end
     if (rd_rising && PI_A == REG_STATUS) begin
-      data_out <= {ipl, 13'd0};
+      data_out <= {ipl, 12'd0, berr_seen};
+		berr_seen <= 1'b0;
     end
   end
 
   reg [15:0] status;
   wire reset_out = !status[1];
 
+//  assign M68K_RESET_n = reset_out ? 1'b0 : 1'bz;
+//  assign M68K_HALT_n = 1'bz; //reset_out ? 1'b0 : 1'bz;
   assign M68K_RESET_n = reset_out ? 1'b0 : 1'bz;
   assign M68K_HALT_n = reset_out ? 1'b0 : 1'bz;
 
@@ -109,6 +117,13 @@ module pistorm(
   reg op_rw = 1'b1;
   reg op_uds_n = 1'b1;
   reg op_lds_n = 1'b1;
+  
+  reg [2:0] FC_INT;
+  reg AS_INT;
+  reg UDS_INT;
+  reg LDS_INT;
+  reg RW_INT;
+  reg BG_INT;
 
   always @(*) begin
     LTCH_D_WR_U <= PI_A == REG_DATA && PI_WR;
@@ -149,7 +164,7 @@ module pistorm(
   end
 
   always @(posedge c200m) begin
-    PI_RESET <= reset_out ? 1'b1 : M68K_RESET_n;
+    PI_RESET <= reset_out ? 1'b1 : M68K_RESET_n ;//| M68K_HALT_n;
   end
 
   reg [3:0] e_counter = 4'd0;
@@ -170,8 +185,10 @@ module pistorm(
 
   reg [2:0] state = 3'd0;
   reg [2:0] PI_TXN_IN_PROGRESS_delay;
+  reg [2:0] op_fc = 3'b111;
 
   always @(posedge c200m) begin
+  
 
     if (wr_rising) begin
       case (PI_A)
@@ -184,6 +201,7 @@ module pistorm(
           op_rw <= PI_D[9];
           op_uds_n <= PI_D[8] ? a0 : 1'b0;
           op_lds_n <= PI_D[8] ? !a0 : 1'b0;
+			 op_fc <= PI_D[15:13];
         end
         REG_STATUS: begin
           status <= PI_D;
@@ -193,31 +211,33 @@ module pistorm(
 
     case (state)
       3'd0: begin // S0
-        M68K_RW <= 1'b1; // S7 -> S0
-//        if (c7m_falling) begin
-//          if (op_req) begin
-            state <= 2'd1;
-//          end
-//        end
-      end
+        RW_INT <= 1'b1; // S7 -> S0
+		  BG_INT <= 1'b1;
+		  if( !M68K_BR_n )
+				BG_INT <= 1'b0;
+		  else if( M68K_BGACK_n )
+				state <= 2'd1;
+		end
 
       3'd1: begin // S1
         if (op_req) begin
+				FC_INT <= op_fc; // technically one S state too late, but we might not know it earlier
           if(c7m_rising) begin
             state <= 3'd2;
           end
         end
       end
       3'd2: begin // S2
-        M68K_RW <= op_rw; // S1 -> S2
+        RW_INT <= op_rw; // S1 -> S2
         LTCH_D_WR_OE_n <= op_rw;
         LTCH_A_OE_n <= 1'b0;
-        M68K_AS_n <= 1'b0;
-        M68K_UDS_n <= op_rw ? op_uds_n : 1'b1;
-        M68K_LDS_n <= op_rw ? op_lds_n : 1'b1;
+        AS_INT <= 1'b0;
+		  FC_INT <= op_fc;
+        UDS_INT <= op_rw ? op_uds_n : 1'b1;
+        LDS_INT <= op_rw ? op_lds_n : 1'b1;
         if (c7m_falling) begin
-          M68K_UDS_n <= op_uds_n;
-          M68K_LDS_n <= op_lds_n;
+          UDS_INT <= op_uds_n;
+          LDS_INT <= op_lds_n;
           state <= 3'd3;
         end
       end
@@ -225,7 +245,7 @@ module pistorm(
       3'd3: begin // S3
         op_req <= 1'b0;
         if(c7m_rising) begin
-          if (!M68K_DTACK_n || (!M68K_VMA_n && e_counter == 4'd8)) begin
+          if (!M68K_DTACK_n || !M68K_BERR_n || (!M68K_VMA_n && e_counter == 4'd8)) begin
             state <= 3'd4;
             PI_TXN_IN_PROGRESS_delay[2:0] <= 3'b111;
           end
@@ -237,43 +257,63 @@ module pistorm(
         end
       end
       3'd4: begin // S4
-        PI_TXN_IN_PROGRESS_delay <= {PI_TXN_IN_PROGRESS_delay[1:0],1'b0};
-        PI_TXN_IN_PROGRESS <= PI_TXN_IN_PROGRESS_delay[2];
-        LTCH_D_RD_U <= 1'b1;
-        LTCH_D_RD_L <= 1'b1;
+//        PI_TXN_IN_PROGRESS_delay <= {PI_TXN_IN_PROGRESS_delay[1:0],1'b0};
+        //PI_TXN_IN_PROGRESS <= PI_TXN_IN_PROGRESS_delay[2];
+        LTCH_D_RD_U <= 1'b0;
+        LTCH_D_RD_L <= 1'b0;
         if (c7m_falling) begin
           state <= 3'd5;
-          PI_TXN_IN_PROGRESS <= 1'b0;
+//          PI_TXN_IN_PROGRESS <= 1'b0;
         end
       end
 
       3'd5: begin // S5
-        LTCH_D_RD_U <= 1'b0;
-        LTCH_D_RD_L <= 1'b0;
         if (c7m_rising) begin
           state <= 3'd6;
         end
       end
        
       3'd6: begin // S6
+		  LTCH_D_RD_U <= 1'b1;
+		  LTCH_D_RD_L <= 1'b1;
         if (c7m_falling) begin
           M68K_VMA_n <= 1'b1;
           state <= 3'd7;
+
+
         end
       end
        
       3'd7: begin // S7
+		
+        PI_TXN_IN_PROGRESS <= 1'b0;
+        LTCH_D_RD_U <= 1'b0;
+        LTCH_D_RD_L <= 1'b0;
+		
+		
         LTCH_D_WR_OE_n <= 1'b1;
         LTCH_A_OE_n <= 1'b1;
-        M68K_AS_n <= 1'b1;
-        M68K_UDS_n <= 1'b1;
-        M68K_LDS_n <= 1'b1;
+        AS_INT <= 1'b1;
+		  FC_INT <= 3'b111;
+        UDS_INT <= 1'b1;
+        LDS_INT <= 1'b1;
 //        if(c7m_rising) begin
 //          M68K_RW <= 1'b1; // S7 -> S0
           state <= 3'd0;
 //        end
       end
     endcase
+	 
+	 if( !PI_RESET )
+		state <= 3'd0;
+	 	 
   end
+  
+	assign M68K_FC = M68K_BGACK_n ? FC_INT : 3'bzzz;
+	assign M68K_AS_n = M68K_BGACK_n ? AS_INT : 1'bz;
+	assign M68K_UDS_n = M68K_BGACK_n ? UDS_INT : 1'bz;
+	assign M68K_LDS_n = M68K_BGACK_n ? LDS_INT : 1'bz;
+	assign M68K_RW = M68K_BGACK_n ? RW_INT : 1'bz;
+	assign M68K_BG_n = M68K_BGACK_n ? BG_INT : 1'bz;
 
 endmodule

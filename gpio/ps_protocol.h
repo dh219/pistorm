@@ -89,6 +89,8 @@
 #define END_TXN \
   *(gpio + 10) = 0xFFFFEC;
 
+void set_berr_callback( void (*)(uint16_t) );
+
 static inline void ps_write_8_ex(volatile uint32_t *gpio, uint32_t address, uint32_t data) {
   if (address & 0x01) {
     data &= 0xFF; // ODD , A0=1,LDS

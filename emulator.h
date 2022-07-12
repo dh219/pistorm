@@ -12,6 +12,7 @@
 
 #include <stdint.h>
 
+
 /*
 void write16(uint32_t address,uint16_t data);
 uint16_t read16(uint32_t address);
@@ -20,6 +21,8 @@ uint16_t read8(uint32_t address);
 */
 
 void cpu_pulse_reset(void);
+void cpu_set_fc(unsigned int A);
+
 void m68ki_int_ack(uint8_t int_level);
 unsigned int cpu_irq_ack(int level);
 unsigned int m68k_read_memory_8(unsigned int address);
