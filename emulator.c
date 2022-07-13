@@ -962,13 +962,25 @@ static inline int32_t platform_read_check(uint8_t type, uint32_t addr, uint32_t 
   return 0;
 }
 
+unsigned int check_ff_st( unsigned int add ) {
+	if( ( add & 0xFF000000 ) == 0xFF000000 ) {
+		add &= 0x00FFFFFF;
+#ifdef DEBUG_EMULATOR
+		printf("Changed address to %x\n", add );
+#endif
+	}
+	return add;
+}
+
 unsigned int m68k_read_memory_8(unsigned int address) {
   if (platform_read_check(OP_TYPE_BYTE, address, &platform_res)) {
     return platform_res;
   }
 
-//  if (address & 0xFF000000)
-//    return 0;
+  address = check_ff_st( address );
+
+  if (address & 0xFF000000)
+    return 0;
 
   return (unsigned int)ps_read_8((uint32_t)address);
 }
@@ -978,8 +990,9 @@ unsigned int m68k_read_memory_16(unsigned int address) {
     return platform_res;
   }
 
-//  if (address & 0xFF000000)
-//    return 0;
+  address = check_ff_st( address );
+  if (address & 0xFF000000)
+    return 0;
 
   if (address & 0x01) {
     return ((ps_read_8(address) << 8) | ps_read_8(address + 1));
@@ -992,8 +1005,9 @@ unsigned int m68k_read_memory_32(unsigned int address) {
     return platform_res;
   }
 
-//  if (address & 0xFF000000)
-//    return 0;
+  address = check_ff_st( address );
+  if (address & 0xFF000000)
+    return 0;
 
   if (address & 0x01) {
     uint32_t c = ps_read_8(address);
@@ -1150,8 +1164,9 @@ void m68k_write_memory_8(unsigned int address, unsigned int value) {
   if (platform_write_check(OP_TYPE_BYTE, address, value))
     return;
 
-//  if (address & 0xFF000000)
-//    return;
+  address = check_ff_st( address );
+  if (address & 0xFF000000)
+    return;
 
   ps_write_8((uint32_t)address, value);
   return;
@@ -1161,8 +1176,9 @@ void m68k_write_memory_16(unsigned int address, unsigned int value) {
   if (platform_write_check(OP_TYPE_WORD, address, value))
     return;
 
-//  if (address & 0xFF000000)
-//    return;
+  address = check_ff_st( address );
+  if (address & 0xFF000000)
+    return;
 
   if (address & 0x01) {
     ps_write_8(value & 0xFF, address);
@@ -1178,8 +1194,9 @@ void m68k_write_memory_32(unsigned int address, unsigned int value) {
   if (platform_write_check(OP_TYPE_LONGWORD, address, value))
     return;
 
-//  if (address & 0xFF000000)
-//    return;
+  address = check_ff_st( address );
+  if (address & 0xFF000000)
+    return;
 
   if (address & 0x01) {
     ps_write_8(value & 0xFF, address);
