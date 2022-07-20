@@ -104,8 +104,11 @@ void check_berr() {
   uint16_t status = ps_read_status_reg();
   if( (status & 0x0001) ) {
     printf("status: %x\n", status );
+//	m68ki_bus_error( 0xDEADBEEF, 0 /*MODE_WRITE*/ );
+
     if( callback_berr )
         callback_berr(status);
+  
   }
 }
 
@@ -143,8 +146,8 @@ void ps_write_16(unsigned int address, unsigned int data) {
 #ifdef DEBUG
   printf( "write16(%6.6x): %x [%d]\n", address, data_orig, fc );
 #endif
-  if( c > 100 )
-     check_berr();
+//  if( c > 100 )
+    check_berr();
 }
 
 void ps_write_8(unsigned int address, unsigned int data) {
@@ -181,7 +184,7 @@ void ps_write_8(unsigned int address, unsigned int data) {
 #ifdef DEBUG
   printf( "write8(%6.6x): %x\n", address, data );
 #endif
-  if( c > 100 )
+//  if( c > 100 )
      check_berr();
 }
 
@@ -224,7 +227,7 @@ unsigned int ps_read_16(unsigned int address) {
   printf( "read16(%6.6x): %x [%x]\n", address, value >> 8 & 0xffff, fc );
 #endif
 
-  if(c>100)
+//  if(c>100)
     check_berr();
 
   return (value >> 8) & 0xffff;
@@ -264,7 +267,7 @@ unsigned int ps_read_8(unsigned int address) {
 #ifdef DEBUG
   printf("read8(%6.6x): %x\n", address, address & 1 ? value & 0xff : 0xff & ( value >> 8 ) );
 #endif
-  if( c > 100 )
+//  if( c > 100 )
     check_berr();
 
   if ((address & 1) == 0)
