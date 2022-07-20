@@ -108,8 +108,6 @@ module pistorm(
   reg [15:0] status;
   wire reset_out = !status[1];
 
-//  assign M68K_RESET_n = reset_out ? 1'b0 : 1'bz;
-//  assign M68K_HALT_n = 1'bz; //reset_out ? 1'b0 : 1'bz;
   assign M68K_RESET_n = reset_out ? 1'b0 : 1'bz;
   assign M68K_HALT_n = reset_out ? 1'b0 : 1'bz;
 
@@ -164,7 +162,7 @@ module pistorm(
   end
 
   always @(posedge c200m) begin
-    PI_RESET <= reset_out ? 1'b1 : M68K_RESET_n ;//| M68K_HALT_n;
+    PI_RESET <= 1'b1;//reset_out ? 1'b1 : M68K_RESET_n ;//| M68K_HALT_n;
   end
 
   reg [3:0] e_counter = 4'd0;
@@ -213,6 +211,7 @@ module pistorm(
       3'd0: begin // S0
         RW_INT <= 1'b1; // S7 -> S0
 		  BG_INT <= 1'b1;
+
 		  if( !M68K_BR_n )
 				BG_INT <= 1'b0;
 		  else if( M68K_BGACK_n )
@@ -303,11 +302,14 @@ module pistorm(
 //        end
       end
     endcase
-	 
-	 if( !PI_RESET )
+
+	 if( !M68K_RESET_n & !M68K_HALT_n & !reset_out )  begin
 		state <= 3'd0;
-	 	 
+		PI_TXN_IN_PROGRESS <= 1'b1;
+	 end
   end
+
+
   
 	assign M68K_FC = M68K_BGACK_n ? FC_INT : 3'bzzz;
 	assign M68K_AS_n = M68K_BGACK_n ? AS_INT : 1'bz;
