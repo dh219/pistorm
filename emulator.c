@@ -126,7 +126,7 @@ uint16_t irq_delay = 0;
 unsigned int amiga_reset=0, amiga_reset_last=0;
 unsigned int do_reset=0;
 
-void call_berr(uint16_t);
+void call_berr(uint16_t status, uint32_t address, uint mode);
 
 void *ipl_task(void *args) {
   printf("IPL thread running\n");
@@ -1237,17 +1237,16 @@ void cpu_set_fc(unsigned int _fc) {
 //#define m68ki_bus_error(ADDR,WRITE_MODE) m68ki_aerr_address=ADDR;m68ki_aerr_write_mode=WRITE_MODE;m68ki_exception_bus_error(&m68ki_cpu)
 
 
-void call_berr(uint16_t status) {
+void call_berr(uint16_t status, uint32_t address, uint mode) {
 	if( status & 0x0001 ) {
 	        m68ki_cpu_core *state = &m68ki_cpu;
-		printf("call_berr()\n");
+		printf("call_berr(): fc=%d\n", fc);
 //		m68k_pulse_bus_error(state);
+    //m68ki_aerr_address=ADDR;m68ki_aerr_write_mode=WRITE_MODE;m68ki_exception_bus_error(&m68ki_cpu)
+    m68ki_aerr_address = address;
+    m68ki_aerr_write_mode = mode ? MODE_READ : MODE_WRITE;
 		g_buserr = 1;
 	}
-//        m68ki_bus_error( 0xDEADBEEF, MODE_WRITE );
-
-	//M68K_END_TIMESLICE
-//	NOP
 }
 
 

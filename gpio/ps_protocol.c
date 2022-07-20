@@ -33,11 +33,11 @@ unsigned int gpfsel0_o;
 unsigned int gpfsel1_o;
 unsigned int gpfsel2_o;
 
-void (*callback_berr)(uint16_t status) = NULL;
+void (*callback_berr)(uint16_t status, uint32_t address, int mode) = NULL;
 
 uint8_t fc;
 
-void set_berr_callback( void(*ptr)(uint16_t) ) {
+void set_berr_callback( void(*ptr)(uint16_t,uint32_t,int) ) {
 	callback_berr = ptr;
 }
 
@@ -100,14 +100,12 @@ void ps_setup_protocol() {
   *(gpio + 2) = GPFSEL2_INPUT;
 }
 
-void check_berr() {
+void check_berr(uint32_t address, int mode) {
   uint16_t status = ps_read_status_reg();
   if( (status & 0x0001) ) {
     printf("status: %x\n", status );
-//	m68ki_bus_error( 0xDEADBEEF, 0 /*MODE_WRITE*/ );
-
     if( callback_berr )
-        callback_berr(status);
+        callback_berr(status,address,mode);
   
   }
 }
@@ -147,7 +145,7 @@ void ps_write_16(unsigned int address, unsigned int data) {
   printf( "write16(%6.6x): %x [%d]\n", address, data_orig, fc );
 #endif
 //  if( c > 100 )
-    check_berr();
+    check_berr(address,0);
 }
 
 void ps_write_8(unsigned int address, unsigned int data) {
@@ -185,7 +183,7 @@ void ps_write_8(unsigned int address, unsigned int data) {
   printf( "write8(%6.6x): %x\n", address, data );
 #endif
 //  if( c > 100 )
-     check_berr();
+    check_berr(address,0);
 }
 
 void ps_write_32(unsigned int address, unsigned int value) {
@@ -228,7 +226,7 @@ unsigned int ps_read_16(unsigned int address) {
 #endif
 
 //  if(c>100)
-    check_berr();
+  check_berr(address,1);
 
   return (value >> 8) & 0xffff;
 }
@@ -268,7 +266,7 @@ unsigned int ps_read_8(unsigned int address) {
   printf("read8(%6.6x): %x\n", address, address & 1 ? value & 0xff : 0xff & ( value >> 8 ) );
 #endif
 //  if( c > 100 )
-    check_berr();
+  check_berr(address,1);
 
   if ((address & 1) == 0)
     return (value >> 8) & 0xff;  // EVEN, A0=0,UDS
