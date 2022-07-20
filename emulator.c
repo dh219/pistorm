@@ -57,6 +57,8 @@ uint8_t mouse_dx = 0, mouse_dy = 0;
 uint8_t mouse_buttons = 0;
 uint8_t mouse_extra = 0;
 
+volatile int g_buserr = 0;
+
 extern uint8_t gayle_int;
 extern uint8_t gayle_ide_enabled;
 extern uint8_t gayle_emulation_enabled;
@@ -222,7 +224,9 @@ static inline void m68k_execute_bef(m68ki_cpu_core *state, int num_cycles)
 	if(!CPU_STOPPED)
 	{
 		/* Return point if we had an address error */
+
 		m68ki_set_address_error_trap(state); /* auto-disable (see m68kcpu.h) */
+
 
 		m68ki_check_bus_error_trap();
 //    printf("checking bus error\n");
@@ -247,9 +251,17 @@ static inline void m68k_execute_bef(m68ki_cpu_core *state, int num_cycles)
 				REG_DA_SAVE[i] = REG_DA[i];
 			}
 
+			g_buserr = 0;	
 			/* Read an instruction and call its handler */
 			REG_IR = m68ki_read_imm_16(state);
+//			printf("Read IR: %x\n",REG_IR);
 			m68ki_instruction_jump_table[REG_IR](state);
+
+			if( g_buserr ) {
+				m68k_pulse_bus_error(state);
+				printf("Bus Err() %d cycles left\n", GET_CYCLES() );
+			}
+
 			USE_CYCLES(CYC_INSTRUCTION[REG_IR]);
 
 			/* Trace m68k_exception, if necessary */
@@ -278,6 +290,12 @@ cpu_loop:
   if (mouse_hook_enabled) {
     get_mouse_status(&mouse_dx, &mouse_dy, &mouse_buttons, &mouse_extra);
   }
+
+
+  if( 0 && m68k_get_reg(NULL,M68K_REG_PC) == 0xFA0302 )
+	  realtime_disassembly = 1;
+  if( 0 && m68k_get_reg(NULL,M68K_REG_PC) == 0xE00406 )
+    realtime_disassembly=1;
 
   if (realtime_disassembly && (do_disasm || cpu_emulation_running)) {
 
@@ -962,13 +980,25 @@ static inline int32_t platform_read_check(uint8_t type, uint32_t addr, uint32_t 
   return 0;
 }
 
+unsigned int check_ff_st( unsigned int add ) {
+	if( ( add & 0xFF000000 ) == 0xFF000000 ) {
+		add &= 0x00FFFFFF;
+#ifdef DEBUG_EMULATOR
+		printf("Changed address to %x\n", add );
+#endif
+	}
+	return add;
+}
+
 unsigned int m68k_read_memory_8(unsigned int address) {
   if (platform_read_check(OP_TYPE_BYTE, address, &platform_res)) {
     return platform_res;
   }
 
-//  if (address & 0xFF000000)
-//    return 0;
+  address = check_ff_st( address );
+
+  if (address & 0xFF000000)
+    return 0;
 
   return (unsigned int)ps_read_8((uint32_t)address);
 }
@@ -978,8 +1008,9 @@ unsigned int m68k_read_memory_16(unsigned int address) {
     return platform_res;
   }
 
-//  if (address & 0xFF000000)
-//    return 0;
+  address = check_ff_st( address );
+  if (address & 0xFF000000)
+    return 0;
 
   if (address & 0x01) {
     return ((ps_read_8(address) << 8) | ps_read_8(address + 1));
@@ -992,8 +1023,9 @@ unsigned int m68k_read_memory_32(unsigned int address) {
     return platform_res;
   }
 
-//  if (address & 0xFF000000)
-//    return 0;
+  address = check_ff_st( address );
+  if (address & 0xFF000000)
+    return 0;
 
   if (address & 0x01) {
     uint32_t c = ps_read_8(address);
@@ -1150,8 +1182,9 @@ void m68k_write_memory_8(unsigned int address, unsigned int value) {
   if (platform_write_check(OP_TYPE_BYTE, address, value))
     return;
 
-//  if (address & 0xFF000000)
-//    return;
+  address = check_ff_st( address );
+  if (address & 0xFF000000)
+    return;
 
   ps_write_8((uint32_t)address, value);
   return;
@@ -1161,8 +1194,9 @@ void m68k_write_memory_16(unsigned int address, unsigned int value) {
   if (platform_write_check(OP_TYPE_WORD, address, value))
     return;
 
-//  if (address & 0xFF000000)
-//    return;
+  address = check_ff_st( address );
+  if (address & 0xFF000000)
+    return;
 
   if (address & 0x01) {
     ps_write_8(value & 0xFF, address);
@@ -1178,8 +1212,9 @@ void m68k_write_memory_32(unsigned int address, unsigned int value) {
   if (platform_write_check(OP_TYPE_LONGWORD, address, value))
     return;
 
-//  if (address & 0xFF000000)
-//    return;
+  address = check_ff_st( address );
+  if (address & 0xFF000000)
+    return;
 
   if (address & 0x01) {
     ps_write_8(value & 0xFF, address);
@@ -1199,14 +1234,20 @@ void cpu_set_fc(unsigned int _fc) {
   //printf("cpu_set_fc(): %x\n", _fc);
 }
 
+//#define m68ki_bus_error(ADDR,WRITE_MODE) m68ki_aerr_address=ADDR;m68ki_aerr_write_mode=WRITE_MODE;m68ki_exception_bus_error(&m68ki_cpu)
+
+
 void call_berr(uint16_t status) {
 	if( status & 0x0001 ) {
 	        m68ki_cpu_core *state = &m68ki_cpu;
 		printf("call_berr()\n");
-		m68k_pulse_bus_error(state);
+//		m68k_pulse_bus_error(state);
+		g_buserr = 1;
 	}
-	M68K_END_TIMESLICE
-	NOP
+//        m68ki_bus_error( 0xDEADBEEF, MODE_WRITE );
+
+	//M68K_END_TIMESLICE
+//	NOP
 }
 
 

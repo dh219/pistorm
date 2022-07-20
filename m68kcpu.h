@@ -645,7 +645,7 @@ extern jmp_buf m68ki_aerr_trap;
 	#define m68ki_set_address_error_trap(state) \
 		if(setjmp(m68ki_aerr_trap) != 0) \
 		{ \
-			m68ki_exception_address_error(); \
+			m68ki_exception_address_error(state); \
 			if(CPU_STOPPED) \
 			{ \
 				SET_CYCLES(0); \
@@ -1953,8 +1953,15 @@ static inline void m68ki_stack_frame_0010(m68ki_cpu_core *state, uint sr, uint v
 
 /* Bus error stack frame (68000 only).
  */
-static inline void m68ki_stack_frame_buserr(m68ki_cpu_core *state, uint sr)
+static inline void m68ki_stack_frame_buserr_orig(m68ki_cpu_core *state, uint sr)
 {
+	printf("m68k_stack_frame_buserr()\n");
+	printf("Pushing REG_PC (%x)\n", REG_PC );
+        printf("Pushing sr (%x)\n", sr );
+        printf("Pushing REG_IR (%x)\n", REG_IR );
+        printf("Pushing m68ki_aerr_address (%x)\n", m68ki_aerr_address  );
+
+
 	m68ki_push_32(state, REG_PC);
 	m68ki_push_16(state, sr);
 	m68ki_push_16(state, REG_IR);
@@ -1966,6 +1973,100 @@ static inline void m68ki_stack_frame_buserr(m68ki_cpu_core *state, uint sr)
 	 */
 	m68ki_push_16(state, m68ki_aerr_write_mode | CPU_INSTR_MODE | m68ki_aerr_fc);
 }
+
+#define IDLE_DEBUG printf
+static inline void m68ki_stack_frame_buserr(m68ki_cpu_core *state, uint sr)
+{
+
+
+    uint32 stacked_pc;
+//    IDLE_INIT_FUNC("m68ki_stack_frame_buserr()");
+    switch (REG_IR) {
+    // Some instruction are special when a bus or address error occurs
+    // since the next opcode is (pre)fetched, the PC value is near the JMP, JSR or RTS
+    // and not near the destination address. 
+    // The REG_PPPC macro is the previous instruction (always valid)
+    // The REG_PPC is the current instruction address
+    // The REG_PC is more or less the PC value (but wrong since prefetch is not emulated)
+
+
+    // these are the opcodes that were controled on real hardware
+
+    // RTS
+    case 0x4E75:                                
+   	    stacked_pc=(REG_PPC+2)&CPU_ADDRESS_MASK;
+	    break;
+    // JMP immediate32
+    case 0x4EF9:
+	    stacked_pc=(REG_PPC+2)&CPU_ADDRESS_MASK;
+	    break;
+
+    // these are the theorical opcodes (may be wrong)
+    // (this one in particular (see german version of LOS2.0))
+    // JMP (Reg)
+    case 0x4ED0:
+    case 0x4ED1:
+    case 0x4ED2:
+    case 0x4ED3:
+    case 0x4ED4:
+    case 0x4ED5:
+    case 0x4ED6:
+    case 0x4ED7:
+    case 0x4ED8:
+    case 0x4ED9:
+    case 0x4EDa:
+    case 0x4EDb:
+    case 0x4EDc:
+    case 0x4EDd:
+    case 0x4EDe:
+    case 0x4EDf:
+  	    stacked_pc=(REG_PPC+2)&CPU_ADDRESS_MASK;
+   	    break;
+        // RTE
+    case 0x4E73:
+  	    stacked_pc=(REG_PPC+2)&CPU_ADDRESS_MASK;
+   	    break;
+	    // JSR 
+	    // when a bus error occur on JSR long opcode, the stack is not modified
+	    // whe should need to compensate
+    case 0x4Eb9:                                
+    case 0x4E90:
+    case 0x4Ea8:
+        stacked_pc=(REG_PPC+2)&CPU_ADDRESS_MASK;
+   	    // correct the stack (user or supervisor)
+   	    if (sr&0x2000) {
+             	m68ki_fake_pull_32(state);
+                IDLE_DEBUG("correct SSP for RTS val=%06x\n",m68ki_cpu.dar[15]);
+              }
+       	else {
+       	    m68ki_cpu.sp[0]+=4;
+            IDLE_DEBUG("correct USP for RTS val=%06x\n",m68ki_cpu.sp[0]);
+        }	  
+	    break;
+
+	case 0x4A2F:                                
+        stacked_pc=(REG_PPC+2)&CPU_ADDRESS_MASK;
+		break;
+    default:
+	        stacked_pc=(REG_PC)&CPU_ADDRESS_MASK;
+    }
+    m68ki_push_32(state, stacked_pc);IDLE_DEBUG("stacking PC x%08x\n",stacked_pc);
+	m68ki_push_16(state, sr);IDLE_DEBUG("stacking SR x%04x\n",sr);
+	m68ki_push_16(state, REG_IR);IDLE_DEBUG("stacking IR x%04x\n",REG_IR);
+	m68ki_push_32(state, m68ki_aerr_address);	/* access address */
+	IDLE_DEBUG("stacking AERR x%08x\n",m68ki_aerr_address);
+	/* 0 0 0 0 0 0 0 0 0 0 0 R/W I/N FC
+	 * R/W  0 = write, 1 = read
+	 * I/N  0 = instruction, 1 = not
+	 * FC   3-bit function code
+	 */
+	m68ki_push_16(state, m68ki_aerr_write_mode | CPU_INSTR_MODE | m68ki_aerr_fc);
+	IDLE_DEBUG("stacking INFO x%04x\n",m68ki_aerr_write_mode | CPU_INSTR_MODE | m68ki_aerr_fc);
+    IDLE_DEBUG("NEW STACK x%08x\n",REG_SP);
+}	
+
+
+
 
 /* Format 8 stack frame (68010).
  * 68010 only.  This is the 29 word bus/address error frame.
@@ -2278,25 +2379,37 @@ static inline void m68ki_exception_bus_error(m68ki_cpu_core *state)
 	 * this is a catastrophic failure.
 	 * Halt the CPU
 	 */
+	/*
 	if(CPU_RUN_MODE == RUN_MODE_BERR_AERR_RESET)
 	{
 		m68k_read_memory_8(0x00ffff01);
 		CPU_STOPPED = STOP_LEVEL_HALT;
 		return;
 	}
+	*/
+/*
+	if(CPU_RUN_MODE != RUN_MODE_NORMAL ) {
+    	printf("Double fault!\n"); 
+		CPU_STOPPED = STOP_LEVEL_HALT;
+		return;		
+	}
 	CPU_RUN_MODE = RUN_MODE_BERR_AERR_RESET;
-
+*/
 	/* Use up some clock cycles and undo the instruction's cycles */
 	USE_CYCLES(CYC_EXCEPTION[EXCEPTION_BUS_ERROR] - CYC_INSTRUCTION[REG_IR]);
 
 	for (i = 15; i >= 0; i--){
 		REG_DA[i] = REG_DA_SAVE[i];
 	}
+
 	uint sr = m68ki_init_exception(state);
-	m68ki_stack_frame_1000(state, REG_PPC, sr, EXCEPTION_BUS_ERROR);
+//	m68ki_stack_frame_1000(state, REG_PPC, sr, EXCEPTION_BUS_ERROR);
+	m68ki_stack_frame_buserr(state, sr);
 
 	m68ki_jump_vector(state, EXCEPTION_BUS_ERROR);
-	longjmp(m68ki_bus_error_jmp_buf, 1);
+//	longjmp(m68ki_bus_error_jmp_buf, 1);
+	//longjmp(m68ki_aerr_trap, 2);
+
 }
 
 extern int cpu_log_enabled;
