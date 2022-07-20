@@ -57,6 +57,8 @@ uint8_t mouse_dx = 0, mouse_dy = 0;
 uint8_t mouse_buttons = 0;
 uint8_t mouse_extra = 0;
 
+volatile int g_buserr = 0;
+
 extern uint8_t gayle_int;
 extern uint8_t gayle_ide_enabled;
 extern uint8_t gayle_emulation_enabled;
@@ -222,7 +224,9 @@ static inline void m68k_execute_bef(m68ki_cpu_core *state, int num_cycles)
 	if(!CPU_STOPPED)
 	{
 		/* Return point if we had an address error */
+
 		m68ki_set_address_error_trap(state); /* auto-disable (see m68kcpu.h) */
+
 
 		m68ki_check_bus_error_trap();
 //    printf("checking bus error\n");
@@ -247,9 +251,17 @@ static inline void m68k_execute_bef(m68ki_cpu_core *state, int num_cycles)
 				REG_DA_SAVE[i] = REG_DA[i];
 			}
 
+			g_buserr = 0;	
 			/* Read an instruction and call its handler */
 			REG_IR = m68ki_read_imm_16(state);
+//			printf("Read IR: %x\n",REG_IR);
 			m68ki_instruction_jump_table[REG_IR](state);
+
+			if( g_buserr ) {
+				m68k_pulse_bus_error(state);
+				printf("Bus Err() %d cycles left\n", GET_CYCLES() );
+			}
+
 			USE_CYCLES(CYC_INSTRUCTION[REG_IR]);
 
 			/* Trace m68k_exception, if necessary */
@@ -278,6 +290,12 @@ cpu_loop:
   if (mouse_hook_enabled) {
     get_mouse_status(&mouse_dx, &mouse_dy, &mouse_buttons, &mouse_extra);
   }
+
+
+  if( 0 && m68k_get_reg(NULL,M68K_REG_PC) == 0xFA0302 )
+	  realtime_disassembly = 1;
+  if( 0 && m68k_get_reg(NULL,M68K_REG_PC) == 0xE00406 )
+    realtime_disassembly=1;
 
   if (realtime_disassembly && (do_disasm || cpu_emulation_running)) {
 
@@ -1216,14 +1234,20 @@ void cpu_set_fc(unsigned int _fc) {
   //printf("cpu_set_fc(): %x\n", _fc);
 }
 
+//#define m68ki_bus_error(ADDR,WRITE_MODE) m68ki_aerr_address=ADDR;m68ki_aerr_write_mode=WRITE_MODE;m68ki_exception_bus_error(&m68ki_cpu)
+
+
 void call_berr(uint16_t status) {
 	if( status & 0x0001 ) {
 	        m68ki_cpu_core *state = &m68ki_cpu;
 		printf("call_berr()\n");
-		m68k_pulse_bus_error(state);
+//		m68k_pulse_bus_error(state);
+		g_buserr = 1;
 	}
-	M68K_END_TIMESLICE
-	NOP
+//        m68ki_bus_error( 0xDEADBEEF, MODE_WRITE );
+
+	//M68K_END_TIMESLICE
+//	NOP
 }
 
 
