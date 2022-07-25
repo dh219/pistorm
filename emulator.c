@@ -279,10 +279,12 @@ static inline void m68k_execute_bef(m68ki_cpu_core *state, int num_cycles)
 }
 
 void *cpu_task() {
-	m68ki_cpu_core *state = &m68ki_cpu;
+    printf("CPU Thread started\n");
+        m68ki_cpu_core *state = &m68ki_cpu;
   state->ovl = ovl;
   state->gpio = gpio;
 	m68k_pulse_reset(state);
+
 
   realtime_disassembly = 0;
 
@@ -710,7 +712,7 @@ switch_config:
     pthread_setname_np(kbd_tid, "pistorm: kbd");
     printf("[MAIN] Keyboard thread created successfully\n");
   }
-
+/*
   // create cpu task
   err = pthread_create(&cpu_tid, NULL, &cpu_task, NULL);
   if (err != 0)
@@ -722,6 +724,9 @@ switch_config:
 
   // wait for cpu task to end before closing up and finishing
   pthread_join(cpu_tid, NULL);
+*/
+
+  cpu_task();
 
   while (!emulator_exiting) {
     emulator_exiting = 1;

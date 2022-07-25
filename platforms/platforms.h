@@ -7,6 +7,7 @@ enum base_platforms {
     PLATFORM_AMIGA,
     PLATFORM_MAC,
     PLATFORM_X68000,
+    PLATFORM_ST,
     PLATFORM_NUM,
 };
 
