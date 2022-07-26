@@ -712,6 +712,7 @@ switch_config:
   }
 
   // create cpu task
+/*
   err = pthread_create(&cpu_tid, NULL, &cpu_task, NULL);
   if (err != 0)
     printf("[ERROR] Cannot create CPU thread: [%s]", strerror(err));
@@ -719,6 +720,9 @@ switch_config:
     pthread_setname_np(cpu_tid, "pistorm: cpu");
     printf("[MAIN] CPU thread created successfully\n");
   }
+*/
+
+	cpu_task();
 
   // wait for cpu task to end before closing up and finishing
   pthread_join(cpu_tid, NULL);
@@ -769,14 +773,17 @@ void cpu_pulse_reset(void) {
 }
 
 unsigned int cpu_irq_ack(int level) {
-  DEBUG("cpu_irq_ack()\n");
+  DEBUG("cpu_irq_ack(0x%x)\n",level);
+  //if( cfg->
   if( level == 2 || level == 4 ) { // autovectors
   	return 24 + level;
   }
   //  perform ack and get vector
   fc = 0x7;
-  uint16_t vec = ( ps_read_16(0xfffff0 + (level << 1) ) ) & 0xff; // despite reading 16 bits, only the lower 8 are the vector
-  DEBUG("vector returned: %x\n", vec );
+  uint32_t ack = 0xfffff0 + (level << 1);
+  DEBUG("Reading 0x%x\n", ack );
+  uint16_t vec = ( ps_read_16(ack) ) & 0xff; // despite reading 16 bits, only the lower 8 are the vector
+  DEBUG("vector returned: 0x%x\n", vec );
   return vec;
 }
 

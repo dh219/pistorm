@@ -18,6 +18,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #include "ps_protocol.h"
 #include "m68k.h"
@@ -37,13 +38,15 @@ void (*callback_berr)(uint16_t status, uint32_t address, int mode) = NULL;
 
 uint8_t fc;
 
+pthread_mutex_t gpio_mutex;
+
 void set_berr_callback( void(*ptr)(uint16_t,uint32_t,int) ) {
 	callback_berr = ptr;
 }
 
 static void setup_io() {
   int fd = open("/dev/mem", O_RDWR | O_SYNC);
-  if (fd < 0) {
+ if (fd < 0) {
     printf("Unable to open /dev/mem. Run as root using sudo?\n");
     exit(-1);
   }
@@ -77,7 +80,7 @@ static void setup_gpclk() {
     ;
   usleep(100);
   *(gpclk + (CLK_GP0_DIV / 4)) =
-      CLK_PASSWD | (9 << 12);  // divider , 6=200MHz on pi3
+      CLK_PASSWD | (8 << 12);  // divider , 6=200MHz on pi3
   usleep(10);
   *(gpclk + (CLK_GP0_CTL / 4)) =
       CLK_PASSWD | 5 | (1 << 4);  // pll? 6=plld, 5=pllc
@@ -98,15 +101,14 @@ void ps_setup_protocol() {
   *(gpio + 0) = GPFSEL0_INPUT;
   *(gpio + 1) = GPFSEL1_INPUT;
   *(gpio + 2) = GPFSEL2_INPUT;
+
 }
 
 void check_berr(uint32_t address, int mode) {
   uint16_t status = ps_read_status_reg();
-  if( (status & 0x0001) ) {
-    printf("status: %x\n", status );
-    if( callback_berr )
-        callback_berr(status,address,mode);
-  
+  if( (status & 0x0001) && callback_berr ) {
+//    printf("status: %x\n", status );
+      callback_berr(status,address,mode);  
   }
 }
 
@@ -141,6 +143,7 @@ void ps_write_16(unsigned int address, unsigned int data) {
 
   uint32_t c = 0;
   while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {c++;}
+
 #ifdef DEBUG
   printf( "write16(%6.6x): %x [%d]\n", address, data_orig, fc );
 #endif
@@ -279,6 +282,7 @@ unsigned int ps_read_32(unsigned int address) {
 }
 
 void ps_write_status_reg(unsigned int value) {
+//  pthread_mutex_lock(&gpio_mutex);
   *(gpio + 0) = GPFSEL0_OUTPUT;
   *(gpio + 1) = GPFSEL1_OUTPUT;
   *(gpio + 2) = GPFSEL2_OUTPUT;
@@ -296,9 +300,11 @@ void ps_write_status_reg(unsigned int value) {
   *(gpio + 0) = GPFSEL0_INPUT;
   *(gpio + 1) = GPFSEL1_INPUT;
   *(gpio + 2) = GPFSEL2_INPUT;
+//  pthread_mutex_unlock(&gpio_mutex);
 }
 
 unsigned int ps_read_status_reg() {
+  pthread_mutex_lock(&gpio_mutex);
   *(gpio + 7) = (REG_STATUS << PIN_A0);
   *(gpio + 7) = 1 << PIN_RD;
   *(gpio + 7) = 1 << PIN_RD;
@@ -313,6 +319,7 @@ unsigned int ps_read_status_reg() {
   while ((value=*(gpio + 13)) & (1 << PIN_TXN_IN_PROGRESS)) {}
   
   *(gpio + 10) = 0xffffec;
+  pthread_mutex_unlock(&gpio_mutex);
 
   return (value >> 8) & 0xffff;
 }
