@@ -34,6 +34,8 @@ unsigned int gpfsel0_o;
 unsigned int gpfsel1_o;
 unsigned int gpfsel2_o;
 
+int g_irq;
+
 void (*callback_berr)(uint16_t status, uint32_t address, int mode) = NULL;
 
 uint8_t fc;
@@ -80,7 +82,7 @@ static void setup_gpclk() {
     ;
   usleep(100);
   *(gpclk + (CLK_GP0_DIV / 4)) =
-      CLK_PASSWD | (8 << 12);  // divider , 6=200MHz on pi3
+      CLK_PASSWD | (6 << 12);  // divider , 6=200MHz on pi3
   usleep(10);
   *(gpclk + (CLK_GP0_CTL / 4)) =
       CLK_PASSWD | 5 | (1 << 4);  // pll? 6=plld, 5=pllc
@@ -105,7 +107,9 @@ void ps_setup_protocol() {
 }
 
 void check_berr(uint32_t address, int mode) {
+
   uint16_t status = ps_read_status_reg();
+	g_irq = ( (status & 0xe000) >> 13 );
   if( (status & 0x0001) && callback_berr ) {
 //    printf("status: %x\n", status );
       callback_berr(status,address,mode);  

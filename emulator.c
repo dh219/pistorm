@@ -138,7 +138,7 @@ void *ipl_task(void *args) {
     if (value & (1 << PIN_TXN_IN_PROGRESS))
       goto noppers;
 
-    if (!(value & (1 << PIN_IPL_ZERO)) || ipl_enabled[amiga_emulated_ipl()]) {
+    if (!(value & (1 << PIN_IPL_ZERO)) || ipl_enabled[amiga_emulated_ipl()]  ) {
       old_irq = irq_delay;
       //NOP
       if (!irq) {
