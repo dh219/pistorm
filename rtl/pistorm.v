@@ -149,6 +149,7 @@ module pistorm(
   reg [2:0] ipl_1;
   reg [2:0] ipl_2;
 
+
   always @(posedge c200m) begin
     if (c7m_falling) begin
       ipl_1 <= ~M68K_IPL_n;
@@ -158,7 +159,7 @@ module pistorm(
     if (ipl_2 == ipl_1)
       ipl <= ipl_2;
 
-    PI_IPL_ZERO <= ipl == 3'd0;
+    PI_IPL_ZERO <= ( ipl == 3'd0 ) && ( ~M68K_IPL_n == 3'd0 );
   end
 
   always @(posedge c200m) begin
@@ -185,6 +186,8 @@ module pistorm(
   reg [2:0] PI_TXN_IN_PROGRESS_delay;
   reg [2:0] op_fc = 3'b111;
 
+	reg [2:0] BR_DELAY = 3'b111;
+  
   always @(posedge c200m) begin
   
 
@@ -206,13 +209,15 @@ module pistorm(
         end
       endcase
     end
+	 
+	 BR_DELAY = { BR_DELAY[1:0], M68K_BR_n };
 
     case (state)
       3'd0: begin // S0
         RW_INT <= 1'b1; // S7 -> S0
 		  BG_INT <= 1'b1;
 
-		  if( !M68K_BR_n )
+		  if( BR_DELAY[2:1] == 2'b00 )
 				BG_INT <= 1'b0;
 		  else if( M68K_BGACK_n )
 				state <= 2'd1;
