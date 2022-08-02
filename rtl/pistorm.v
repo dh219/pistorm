@@ -159,11 +159,11 @@ module pistorm(
     if (ipl_2 == ipl_1)
       ipl <= ipl_2;
 
-    PI_IPL_ZERO <= ( ipl == 3'd0 ) && ( ~M68K_IPL_n == 3'd0 );
+    PI_IPL_ZERO <= /*M68K_BERR_n & */( ( ipl == 3'd0 ) && ( ~M68K_IPL_n == 3'd0 ) );
   end
 
   always @(posedge c200m) begin
-    PI_RESET <= 1'b1;//reset_out ? 1'b1 : M68K_RESET_n ;//| M68K_HALT_n;
+    //PI_RESET <= 1'b1;//reset_out ? 1'b1 : M68K_RESET_n ;//| M68K_HALT_n;
   end
 
   reg [3:0] e_counter = 4'd0;
@@ -216,7 +216,7 @@ module pistorm(
       3'd0: begin // S0
         RW_INT <= 1'b1; // S7 -> S0
 		  BG_INT <= 1'b1;
-
+		  FC_INT <= 3'b111;
 		  if( BR_DELAY[2:1] == 2'b00 )
 				BG_INT <= 1'b0;
 		  else if( M68K_BGACK_n )
@@ -232,6 +232,8 @@ module pistorm(
         end
       end
       3'd2: begin // S2
+		  PI_RESET <= 1'b1;
+
         RW_INT <= op_rw; // S1 -> S2
         LTCH_D_WR_OE_n <= op_rw;
         LTCH_A_OE_n <= 1'b0;
@@ -263,8 +265,7 @@ module pistorm(
       3'd4: begin // S4
 //        PI_TXN_IN_PROGRESS_delay <= {PI_TXN_IN_PROGRESS_delay[1:0],1'b0};
         //PI_TXN_IN_PROGRESS <= PI_TXN_IN_PROGRESS_delay[2];
-        LTCH_D_RD_U <= 1'b0;
-        LTCH_D_RD_L <= 1'b0;
+		  PI_RESET <= M68K_BERR_n;
         if (c7m_falling) begin
           state <= 3'd5;
 //          PI_TXN_IN_PROGRESS <= 1'b0;
@@ -283,8 +284,6 @@ module pistorm(
         if (c7m_falling) begin
           M68K_VMA_n <= 1'b1;
           state <= 3'd7;
-
-
         end
       end
        
