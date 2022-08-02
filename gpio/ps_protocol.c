@@ -34,6 +34,8 @@ unsigned int gpfsel0_o;
 unsigned int gpfsel1_o;
 unsigned int gpfsel2_o;
 
+int g_irq;
+
 void (*callback_berr)(uint16_t status, uint32_t address, int mode) = NULL;
 
 uint8_t fc;
@@ -80,7 +82,7 @@ static void setup_gpclk() {
     ;
   usleep(100);
   *(gpclk + (CLK_GP0_DIV / 4)) =
-      CLK_PASSWD | (8 << 12);  // divider , 6=200MHz on pi3
+      CLK_PASSWD | (7 << 12);  // divider , 6=200MHz on pi3
   usleep(10);
   *(gpclk + (CLK_GP0_CTL / 4)) =
       CLK_PASSWD | 5 | (1 << 4);  // pll? 6=plld, 5=pllc
@@ -105,9 +107,13 @@ void ps_setup_protocol() {
 }
 
 void check_berr(uint32_t address, int mode) {
+  if( (*(gpio + 13) & (1 << PIN_RESET ) ) )
+    return;
+
   uint16_t status = ps_read_status_reg();
+	g_irq = ( (status & 0xe000) >> 13 );
   if( (status & 0x0001) && callback_berr ) {
-//    printf("status: %x\n", status );
+      printf("status: %x\n", status );
       callback_berr(status,address,mode);  
   }
 }
@@ -141,14 +147,12 @@ void ps_write_16(unsigned int address, unsigned int data) {
   *(gpio + 1) = GPFSEL1_INPUT;
   *(gpio + 2) = GPFSEL2_INPUT;
 
-  uint32_t c = 0;
-  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {c++;}
+  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
+  check_berr(address,0);
 
 #ifdef DEBUG
   printf( "write16(%6.6x): %x [%d]\n", address, data_orig, fc );
 #endif
-//  if( c > 100 )
-    check_berr(address,0);
 }
 
 void ps_write_8(unsigned int address, unsigned int data) {
@@ -180,13 +184,11 @@ void ps_write_8(unsigned int address, unsigned int data) {
   *(gpio + 1) = GPFSEL1_INPUT;
   *(gpio + 2) = GPFSEL2_INPUT;
 
-  uint32_t c = 0;
-  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {c++;}
+  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
+  check_berr(address,0);
 #ifdef DEBUG
   printf( "write8(%6.6x): %x\n", address, data );
 #endif
-//  if( c > 100 )
-    check_berr(address,0);
 }
 
 void ps_write_32(unsigned int address, unsigned int value) {
@@ -219,17 +221,14 @@ unsigned int ps_read_16(unsigned int address) {
   *(gpio + 7) = (REG_DATA << PIN_A0);
   *(gpio + 7) = 1 << PIN_RD;
 
-  uint32_t c = 0;
-  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {c++;}
+  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
   unsigned int value = *(gpio + 13);
   *(gpio + 10) = 0xffffec;
+  check_berr(address,1);
 
 #ifdef DEBUG
   printf( "read16(%6.6x): %x [%x]\n", address, value >> 8 & 0xffff, fc );
 #endif
-
-//  if(c>100)
-  check_berr(address,1);
 
   return (value >> 8) & 0xffff;
 }
@@ -256,20 +255,15 @@ unsigned int ps_read_8(unsigned int address) {
   *(gpio + 7) = (REG_DATA << PIN_A0);
   *(gpio + 7) = 1 << PIN_RD;
 
-  uint32_t c = 0;
-  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {c++;}
+  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
   unsigned int value = *(gpio + 13);
-
   *(gpio + 10) = 0xffffec;
-
   value = (value >> 8) & 0xffff;
-
+  check_berr(address,1);
 
 #ifdef DEBUG
   printf("read8(%6.6x): %x\n", address, address & 1 ? value & 0xff : 0xff & ( value >> 8 ) );
 #endif
-//  if( c > 100 )
-  check_berr(address,1);
 
   if ((address & 1) == 0)
     return (value >> 8) & 0xff;  // EVEN, A0=0,UDS

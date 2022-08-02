@@ -138,7 +138,7 @@ void *ipl_task(void *args) {
     if (value & (1 << PIN_TXN_IN_PROGRESS))
       goto noppers;
 
-    if (!(value & (1 << PIN_IPL_ZERO)) || ipl_enabled[amiga_emulated_ipl()]) {
+    if (!(value & (1 << PIN_IPL_ZERO)) || ipl_enabled[amiga_emulated_ipl()]  ) {
       old_irq = irq_delay;
       //NOP
       if (!irq) {
@@ -161,6 +161,8 @@ void *ipl_task(void *args) {
         //usleep(0);
       }
     }
+
+    #if 0
     if(do_reset==0)
     {
       amiga_reset=(value & (1 << PIN_RESET));
@@ -179,6 +181,7 @@ void *ipl_task(void *args) {
         }
       }
     }
+    #endif
 
     /*if (gayle_ide_enabled) {
       if (((gayle_int & 0x80) || gayle_a4k_int) && (get_ide(0)->drive[0].intrq || get_ide(0)->drive[1].intrq)) {
@@ -764,20 +767,22 @@ void cpu_pulse_reset(void) {
     cfg->platform->handle_reset(cfg);
 
 //  int status = ps_read_status_reg();
+#if 0
   int pin_reset = *(gpio + 13) & ( 1 << PIN_RESET );
   printf("pin_reset: %x\n", pin_reset );
 
   if( !pin_reset ) {
 	  m68k_pulse_reset(state);
   }
+#endif
 }
 
 unsigned int cpu_irq_ack(int level) {
-  DEBUG("cpu_irq_ack(0x%x)\n",level);
   //if( cfg->
   if( level == 2 || level == 4 ) { // autovectors
   	return 24 + level;
   }
+  DEBUG("cpu_irq_ack(0x%x)\n",level);
   //  perform ack and get vector
   fc = 0x7;
   uint32_t ack = 0xfffff0 + (level << 1);
