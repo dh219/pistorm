@@ -706,6 +706,7 @@ switch_config:
   }
 
   // create keyboard task
+/*
   err = pthread_create(&kbd_tid, NULL, &keyboard_task, NULL);
   if (err != 0)
     printf("[ERROR] Cannot create keyboard thread: [%s]", strerror(err));
@@ -713,6 +714,7 @@ switch_config:
     pthread_setname_np(kbd_tid, "pistorm: kbd");
     printf("[MAIN] Keyboard thread created successfully\n");
   }
+*/
 
   // create cpu task
 /*
@@ -778,11 +780,14 @@ void cpu_pulse_reset(void) {
 }
 
 unsigned int cpu_irq_ack(int level) {
-  //if( cfg->
   if( level == 2 || level == 4 ) { // autovectors
   	return 24 + level;
   }
   DEBUG("cpu_irq_ack(0x%x)\n",level);
+  uint16_t status = ( ps_read_status_reg() );
+  if( !( status >> 13 ) ) 
+    printf("ps_read_status_reg(): 0x%x\n", status );
+
   //  perform ack and get vector
   fc = 0x7;
   uint32_t ack = 0xfffff0 + (level << 1);

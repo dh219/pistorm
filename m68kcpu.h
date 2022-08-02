@@ -2625,8 +2625,13 @@ static inline void m68ki_check_interrupts(m68ki_cpu_core *state)
 		state->nmi_pending = FALSE;
 		m68ki_exception_interrupt(state, 7);
 	}
-	else if(CPU_INT_LEVEL > FLAG_INT_MASK)
-		m68ki_exception_interrupt(state, CPU_INT_LEVEL >> 8);
+	else if(CPU_INT_LEVEL > FLAG_INT_MASK) {
+		int status = ps_read_status_reg() >> 13; // nasty hack, breaking the separation to double check interrupt is really valid
+		if( status != ( CPU_INT_LEVEL >> 8 ) )
+			printf("Status mismatch %d != %d\n", CPU_INT_LEVEL >> 8, status );
+		else
+			m68ki_exception_interrupt(state, CPU_INT_LEVEL >> 8);
+	}
 }
 
 
