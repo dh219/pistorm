@@ -779,23 +779,6 @@ void cpu_pulse_reset(void) {
 #endif
 }
 
-unsigned int cpu_irq_ack(int level) {
-  if( level == 2 || level == 4 ) { // autovectors
-  	return 24 + level;
-  }
-  DEBUG("cpu_irq_ack(0x%x)\n",level);
-  uint16_t status = ( ps_read_status_reg() );
-  if( !( status >> 13 ) ) 
-    printf("ps_read_status_reg(): 0x%x\n", status );
-
-  //  perform ack and get vector
-  fc = 0x7;
-  uint32_t ack = 0xfffff0 + (level << 1);
-  DEBUG("Reading 0x%x\n", ack );
-  uint16_t vec = ( ps_read_16(ack) ) & 0xff; // despite reading 16 bits, only the lower 8 are the vector
-  DEBUG("vector returned: 0x%x\n", vec );
-  return vec;
-}
 
 static unsigned int target = 0;
 static uint32_t platform_res, rres;
@@ -834,6 +817,22 @@ static inline void ps_write(uint8_t type, uint32_t addr, uint32_t val) {
   }
   // This shouldn't actually happen.
   return;
+}
+
+
+unsigned int cpu_irq_ack(int level) {
+  if( level == 2 || level == 4 ) { // autovectors
+  	return 24 + level;
+  }
+  DEBUG("cpu_irq_ack(0x%x)\n",level);
+
+  //  perform ack and get vector
+  fc = 0x7;
+  uint32_t ack = 0xfffff0 + (level << 1);
+  DEBUG("Reading 0x%x\n", ack );
+  uint16_t vec = ( ps_read(OP_TYPE_WORD, ack) ) & 0xff; // despite reading 16 bits, only the lower 8 are the vector
+  DEBUG("vector returned: 0x%x\n", vec );
+  return vec;
 }
 
 static inline int32_t platform_read_check(uint8_t type, uint32_t addr, uint32_t *res) {
@@ -1017,7 +1016,9 @@ unsigned int m68k_read_memory_8(unsigned int address) {
   if (address & 0xFF000000)
     return 0;
 
-  return (unsigned int)ps_read_8((uint32_t)address);
+//  return (unsigned int)ps_read_8((uint32_t)address);
+  return ps_read(OP_TYPE_BYTE, (uint32_t)address );
+  
 }
 
 unsigned int m68k_read_memory_16(unsigned int address) {
@@ -1030,9 +1031,11 @@ unsigned int m68k_read_memory_16(unsigned int address) {
     return 0;
 
   if (address & 0x01) {
-    return ((ps_read_8(address) << 8) | ps_read_8(address + 1));
+//    return ((ps_read_8(address) << 8) | ps_read_8(address + 1));
+    return ps_read(OP_TYPE_BYTE, (uint32_t)address << 8 ) | ps_read(OP_TYPE_BYTE, (uint32_t)address+1 );
   }
-  return (unsigned int)ps_read_16((uint32_t)address);
+  //return (unsigned int)ps_read_16((uint32_t)address);
+  return ps_read(OP_TYPE_WORD, (uint32_t)address );
 }
 
 unsigned int m68k_read_memory_32(unsigned int address) {
@@ -1045,13 +1048,18 @@ unsigned int m68k_read_memory_32(unsigned int address) {
     return 0;
 
   if (address & 0x01) {
-    uint32_t c = ps_read_8(address);
+/*    uint32_t c = ps_read_8(address);
     c |= (be16toh(ps_read_16(address+1)) << 8);
     c |= (ps_read_8(address + 3) << 24);
+    return htobe32(c);*/
+    uint32_t c;
+    c = ps_read(OP_TYPE_BYTE, address );
+    c |= be16toh(ps_read(OP_TYPE_WORD, address+1 ) << 8 );
+    c |= (ps_read(OP_TYPE_BYTE, address + 3) << 24);
     return htobe32(c);
   }
-  uint16_t a = ps_read_16(address);
-  uint16_t b = ps_read_16(address + 2);
+  uint16_t a = ps_read(OP_TYPE_WORD, address);
+  uint16_t b = ps_read(OP_TYPE_WORD, address + 2);
   return (a << 16) | b;
 }
 
@@ -1203,7 +1211,8 @@ void m68k_write_memory_8(unsigned int address, unsigned int value) {
   if (address & 0xFF000000)
     return;
 
-  ps_write_8((uint32_t)address, value);
+  //ps_write_8((uint32_t)address, value);
+  ps_write(OP_TYPE_BYTE, (uint32_t)address, value);
   return;
 }
 
@@ -1216,8 +1225,10 @@ void m68k_write_memory_16(unsigned int address, unsigned int value) {
     return;
 
   if (address & 0x01) {
-    ps_write_8(value & 0xFF, address);
-    ps_write_8((value >> 8) & 0xFF, address + 1);
+//    ps_write_8(value & 0xFF, address);
+//    ps_write_8((value >> 8) & 0xFF, address + 1);
+    ps_write(OP_TYPE_BYTE, (uint32_t)address, value & 0xff);
+    ps_write(OP_TYPE_BYTE, (uint32_t)address+1, ( value>>8 ) & 0xff );
     return;
   }
 
@@ -1234,32 +1245,33 @@ void m68k_write_memory_32(unsigned int address, unsigned int value) {
     return;
 
   if (address & 0x01) {
-    ps_write_8(value & 0xFF, address);
-    ps_write_16(htobe16(((value >> 8) & 0xFFFF)), address + 1);
-    ps_write_8((value >> 24), address + 3);
+//    ps_write_8(value & 0xFF, address);
+//    ps_write_16(htobe16(((value >> 8) & 0xFFFF)), address + 1);
+//    ps_write_8((value >> 24), address + 3);
+
+    ps_write(OP_TYPE_BYTE, (uint32_t)address, value & 0xff);
+    ps_write(OP_TYPE_WORD, (uint32_t)address+1, htobe16( ( value >> 8 ) & 0xffff )) ;
+    ps_write(OP_TYPE_BYTE, (uint32_t)address+3, ( value >> 24 ) & 0xff);
+
     return;
   }
 
-  ps_write_16(address, value >> 16);
-  ps_write_16(address + 2, value);
+//  ps_write_16(address, value >> 16);
+//  ps_write_16(address + 2, value);
+  ps_write(OP_TYPE_WORD, (uint32_t)address+1,  value >> 16 ) ;
+  ps_write(OP_TYPE_WORD, (uint32_t)address+2, value ) ;
   return;
 }
 
 
 void cpu_set_fc(unsigned int _fc) {
 	fc = _fc;
-  //printf("cpu_set_fc(): %x\n", _fc);
 }
-
-//#define m68ki_bus_error(ADDR,WRITE_MODE) m68ki_aerr_address=ADDR;m68ki_aerr_write_mode=WRITE_MODE;m68ki_exception_bus_error(&m68ki_cpu)
-
 
 void call_berr(uint16_t status, uint32_t address, uint mode) {
 	if( status & 0x0001 ) {
 	        m68ki_cpu_core *state = &m68ki_cpu;
 		printf("call_berr(): fc=%d\n", fc);
-//		m68k_pulse_bus_error(state);
-    //m68ki_aerr_address=ADDR;m68ki_aerr_write_mode=WRITE_MODE;m68ki_exception_bus_error(&m68ki_cpu)
     m68ki_aerr_address = address;
     m68ki_aerr_write_mode = mode ? MODE_READ : MODE_WRITE;
 		g_buserr = 1;
