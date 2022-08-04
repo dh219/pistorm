@@ -81,7 +81,7 @@ static void setup_gpclk() {
     ;
   usleep(100);
   *(gpclk + (CLK_GP0_DIV / 4)) =
-      CLK_PASSWD | (6 << 12);  // divider , 6=200MHz on pi3
+      CLK_PASSWD | (7 << 12);  // divider , 6=200MHz on pi3
   usleep(10);
   *(gpclk + (CLK_GP0_CTL / 4)) =
       CLK_PASSWD | 5 | (1 << 4);  // pll? 6=plld, 5=pllc

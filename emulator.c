@@ -802,7 +802,6 @@ void cdtv_dmac_write(uint32_t address, uint32_t value, uint8_t type);
 unsigned int garbage = 0;
 
 static inline uint32_t ps_read(uint8_t type, uint32_t addr) {
-  addr = check_ff_st( addr );
   uint32_t result;
 
   switch (type) {
@@ -820,8 +819,6 @@ static inline uint32_t ps_read(uint8_t type, uint32_t addr) {
 }
 
 static inline void ps_write(uint8_t type, uint32_t addr, uint32_t val) {
-  addr = check_ff_st( addr );
-
   switch (type) {
     case OP_TYPE_BYTE:
       ps_write_8(addr, val);
@@ -1018,6 +1015,7 @@ unsigned int m68k_read_memory_8(unsigned int address) {
     return platform_res;
   }
 
+  address = check_ff_st( address );
   if (address & 0xFF000000)
     return 0;
 
@@ -1029,7 +1027,7 @@ unsigned int m68k_read_memory_16(unsigned int address) {
   if (platform_read_check(OP_TYPE_WORD, address, &platform_res)) {
     return platform_res;
   }
-
+  address = check_ff_st( address );
   if (address & 0xFF000000)
     return 0;
 
@@ -1044,6 +1042,7 @@ unsigned int m68k_read_memory_32(unsigned int address) {
     return platform_res;
   }
 
+  address = check_ff_st( address );
   if (address & 0xFF000000)
     return 0;
 
@@ -1203,6 +1202,7 @@ void m68k_write_memory_8(unsigned int address, unsigned int value) {
   if (platform_write_check(OP_TYPE_BYTE, address, value))
     return;
 
+  address = check_ff_st( address );
   if (address & 0xFF000000)
     return;
 
@@ -1215,6 +1215,7 @@ void m68k_write_memory_16(unsigned int address, unsigned int value) {
   if (platform_write_check(OP_TYPE_WORD, address, value))
     return;
 
+  address = check_ff_st( address );
   if (address & 0xFF000000)
     return;
 
@@ -1232,6 +1233,7 @@ void m68k_write_memory_32(unsigned int address, unsigned int value) {
   if (platform_write_check(OP_TYPE_LONGWORD, address, value))
     return;
 
+  address = check_ff_st( address );
   if (address & 0xFF000000)
     return;
 
