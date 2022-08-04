@@ -780,6 +780,17 @@ void cpu_pulse_reset(void) {
 }
 
 
+static inline unsigned int check_ff_st( unsigned int add ) {
+	if( ( add & 0xFF000000 ) == 0xFF000000 ) {
+		add &= 0x00FFFFFF;
+#ifdef DEBUG_EMULATOR
+		printf("Changed address to %x\n", add );
+#endif
+	}
+	return add;
+}
+
+
 static unsigned int target = 0;
 static uint32_t platform_res, rres;
 
@@ -791,31 +802,37 @@ void cdtv_dmac_write(uint32_t address, uint32_t value, uint8_t type);
 unsigned int garbage = 0;
 
 static inline uint32_t ps_read(uint8_t type, uint32_t addr) {
+  addr = check_ff_st( addr );
+  uint32_t result;
+
   switch (type) {
     case OP_TYPE_BYTE:
-      return ps_read_8(addr);
+      result = ps_read_8(addr);
+      break;
     case OP_TYPE_WORD:
-      return ps_read_16(addr);
+      result = ps_read_16(addr);
+      break;
     case OP_TYPE_LONGWORD:
-      return ps_read_32(addr);
+      result = ps_read_32(addr);
+      break;
   }
-  // This shouldn't actually happen.
-  return 0;
+  return result;
 }
 
 static inline void ps_write(uint8_t type, uint32_t addr, uint32_t val) {
+  addr = check_ff_st( addr );
+
   switch (type) {
     case OP_TYPE_BYTE:
       ps_write_8(addr, val);
-      return;
+      break;
     case OP_TYPE_WORD:
       ps_write_16(addr, val);
-      return;
+      break;
     case OP_TYPE_LONGWORD:
       ps_write_32(addr, val);
-      return;
+      break;
   }
-  // This shouldn't actually happen.
   return;
 }
 
@@ -996,27 +1013,14 @@ static inline int32_t platform_read_check(uint8_t type, uint32_t addr, uint32_t 
   return 0;
 }
 
-unsigned int check_ff_st( unsigned int add ) {
-	if( ( add & 0xFF000000 ) == 0xFF000000 ) {
-		add &= 0x00FFFFFF;
-#ifdef DEBUG_EMULATOR
-		printf("Changed address to %x\n", add );
-#endif
-	}
-	return add;
-}
-
 unsigned int m68k_read_memory_8(unsigned int address) {
   if (platform_read_check(OP_TYPE_BYTE, address, &platform_res)) {
     return platform_res;
   }
 
-  address = check_ff_st( address );
-
   if (address & 0xFF000000)
     return 0;
 
-//  return (unsigned int)ps_read_8((uint32_t)address);
   return ps_read(OP_TYPE_BYTE, (uint32_t)address );
   
 }
@@ -1026,15 +1030,12 @@ unsigned int m68k_read_memory_16(unsigned int address) {
     return platform_res;
   }
 
-  address = check_ff_st( address );
   if (address & 0xFF000000)
     return 0;
 
   if (address & 0x01) {
-//    return ((ps_read_8(address) << 8) | ps_read_8(address + 1));
     return ps_read(OP_TYPE_BYTE, (uint32_t)address << 8 ) | ps_read(OP_TYPE_BYTE, (uint32_t)address+1 );
   }
-  //return (unsigned int)ps_read_16((uint32_t)address);
   return ps_read(OP_TYPE_WORD, (uint32_t)address );
 }
 
@@ -1043,15 +1044,10 @@ unsigned int m68k_read_memory_32(unsigned int address) {
     return platform_res;
   }
 
-  address = check_ff_st( address );
   if (address & 0xFF000000)
     return 0;
 
   if (address & 0x01) {
-/*    uint32_t c = ps_read_8(address);
-    c |= (be16toh(ps_read_16(address+1)) << 8);
-    c |= (ps_read_8(address + 3) << 24);
-    return htobe32(c);*/
     uint32_t c;
     c = ps_read(OP_TYPE_BYTE, address );
     c |= be16toh(ps_read(OP_TYPE_WORD, address+1 ) << 8 );
@@ -1207,7 +1203,6 @@ void m68k_write_memory_8(unsigned int address, unsigned int value) {
   if (platform_write_check(OP_TYPE_BYTE, address, value))
     return;
 
-  address = check_ff_st( address );
   if (address & 0xFF000000)
     return;
 
@@ -1220,13 +1215,10 @@ void m68k_write_memory_16(unsigned int address, unsigned int value) {
   if (platform_write_check(OP_TYPE_WORD, address, value))
     return;
 
-  address = check_ff_st( address );
   if (address & 0xFF000000)
     return;
 
   if (address & 0x01) {
-//    ps_write_8(value & 0xFF, address);
-//    ps_write_8((value >> 8) & 0xFF, address + 1);
     ps_write(OP_TYPE_BYTE, (uint32_t)address, value & 0xff);
     ps_write(OP_TYPE_BYTE, (uint32_t)address+1, ( value>>8 ) & 0xff );
     return;
@@ -1240,15 +1232,10 @@ void m68k_write_memory_32(unsigned int address, unsigned int value) {
   if (platform_write_check(OP_TYPE_LONGWORD, address, value))
     return;
 
-  address = check_ff_st( address );
   if (address & 0xFF000000)
     return;
 
   if (address & 0x01) {
-//    ps_write_8(value & 0xFF, address);
-//    ps_write_16(htobe16(((value >> 8) & 0xFFFF)), address + 1);
-//    ps_write_8((value >> 24), address + 3);
-
     ps_write(OP_TYPE_BYTE, (uint32_t)address, value & 0xff);
     ps_write(OP_TYPE_WORD, (uint32_t)address+1, htobe16( ( value >> 8 ) & 0xffff )) ;
     ps_write(OP_TYPE_BYTE, (uint32_t)address+3, ( value >> 24 ) & 0xff);
@@ -1256,8 +1243,6 @@ void m68k_write_memory_32(unsigned int address, unsigned int value) {
     return;
   }
 
-//  ps_write_16(address, value >> 16);
-//  ps_write_16(address + 2, value);
   ps_write(OP_TYPE_WORD, (uint32_t)address+1,  value >> 16 ) ;
   ps_write(OP_TYPE_WORD, (uint32_t)address+2, value ) ;
   return;
