@@ -227,8 +227,13 @@ module pistorm(
 		  else if( op_req && M68K_BGACK_n && BGK_DELAY[2] ) begin
 				FC_INT <= op_fc;
 				RW_INT <= op_rw;
-				state <= 3'd2;
+				if( c7m_falling )
+					state <= 3'd1;
 			end
+		end
+		3'd1: begin
+			if( c7m_rising )
+				state <= 3'd2;
 		end
 		
       3'd2: begin // S2
@@ -244,10 +249,10 @@ module pistorm(
 			end
       end
 
-      3'd3: begin // S3
+      3'd3: begin // S3		
         op_req <= 1'b0;
-        if(c7m_rising) begin
-          if (!M68K_DTACK_n || !M68K_BERR_n || (!VMA_INT && e_counter == 4'd8)) begin
+/*        if(c7m_rising) begin
+			if (!M68K_DTACK_n || !M68K_BERR_n || (!VMA_INT && e_counter == 4'd8)) begin
             state <= 3'd4;
             PI_TXN_IN_PROGRESS_delay[2:0] <= 3'b111;
           end
@@ -256,26 +261,47 @@ module pistorm(
               VMA_INT <= 1'b0;
             end
           end
-        end
+        end				
+*/
+			if(c7m_rising) begin
+				state <= 3'd4;
+			end
       end
 		
       3'd4: begin // S4
 		  PI_RESET <= M68K_BERR_n;
-        if (c7m_falling) begin
-          state <= 3'd5;
-			  LTCH_D_RD_U <= 1'b0;
-			  LTCH_D_RD_L <= 1'b0;
-        end
+
+
+			if (c7m_falling) begin
+				if (!M68K_DTACK_n || !M68K_BERR_n || (!VMA_INT && e_counter == 4'd8)) begin
+					state <= 3'd5;
+					PI_TXN_IN_PROGRESS_delay[2:0] <= 3'b111;
+				end
+				else begin
+					if (!M68K_VPA_n && e_counter == 4'd2) begin
+					  VMA_INT <= 1'b0;
+					end
+				end
+			end
+		
+//          state <= 3'd5;
       end
 
       3'd5: begin // S5
-		if( !op_rw )
-				PI_TXN_IN_PROGRESS <= 1'b0;
-        if (c7m_rising) begin
+//			if( !op_rw )
+//					PI_TXN_IN_PROGRESS <= 1'b0;
+		  if (c7m_rising) begin
+			 state <= 3'd6;
+		  end
+				LTCH_D_RD_U <= 1'b0;
+				LTCH_D_RD_L <= 1'b0;
+      end
+		3'd6: begin
+        if (c7m_falling) begin
           state <= 3'd7;
         end
-      end
-		
+
+		end
       3'd7: begin // S7
 		
         PI_TXN_IN_PROGRESS <= 1'b0;
@@ -291,6 +317,7 @@ module pistorm(
         LDS_INT <= 1'b1;
 		  VMA_INT <= 1'b1;
 		  
+		  if( c7m_rising )
           state <= 3'd0;
       end
     endcase
