@@ -250,6 +250,7 @@ module pistorm(
       end
 
       3'd3: begin // S3		
+        op_req <= 1'b0;
 /*        if(c7m_rising) begin
 			if (!M68K_DTACK_n || !M68K_BERR_n || (!VMA_INT && e_counter == 4'd8)) begin
             state <= 3'd4;
@@ -262,7 +263,6 @@ module pistorm(
           end
         end				
 */
-
 			if(c7m_rising) begin
 				state <= 3'd4;
 			end
@@ -270,8 +270,21 @@ module pistorm(
 		
       3'd4: begin // S4
 		  PI_RESET <= M68K_BERR_n;
-			if( c7m_falling && ( !M68K_DTACK_n || !M68K_BERR_n || ( !VMA_INT && e_counter == 4'd8 ) ) )
-				state <= 3'd5;
+
+
+			if (c7m_falling) begin
+				if (!M68K_DTACK_n || !M68K_BERR_n || (!VMA_INT && e_counter == 4'd8)) begin
+					state <= 3'd5;
+					PI_TXN_IN_PROGRESS_delay[2:0] <= 3'b111;
+				end
+				else begin
+					if (!M68K_VPA_n && e_counter == 4'd2) begin
+					  VMA_INT <= 1'b0;
+					end
+				end
+			end
+		
+//          state <= 3'd5;
       end
 
       3'd5: begin // S5
@@ -303,21 +316,16 @@ module pistorm(
         UDS_INT <= 1'b1;
         LDS_INT <= 1'b1;
 		  VMA_INT <= 1'b1;
-
-		  op_req <= 1'b0;
-
+		  
 		  if( c7m_rising )
           state <= 3'd0;
       end
     endcase
 	 
-	if( !M68K_VPA_n && e_counter == 4'd2 )
-		VMA_INT <= 1'b0;
 
 	 if( !M68K_RESET_n & !M68K_HALT_n & !reset_out )  begin
 		state <= 3'd0;
 		PI_TXN_IN_PROGRESS <= 1'b0;
-		op_req <= 1'd0;
 	 end
   end
 
