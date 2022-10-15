@@ -247,14 +247,11 @@ unsigned int ps_read_16(unsigned int address) {
 
 	unsigned int value = 0xffffffff;
 //  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
-        while ( (l = *(gpio + 13) ) & 1 ) {} // 0x1 == PIN_TXN_IN_PROGRESS
+        while ( (l = *(gpio + 13) ) & 0x1 ) {} // 0x1 == PIN_TXN_IN_PROGRESS
+  	value = *(gpio + 13);
+ 	*(gpio + 10) = 0xffffec;
         if( CHECK_PIN_RESET(l) )
                 check_berr(address,1);
-	else {
-	  	value = *(gpio + 13);
-	 	*(gpio + 10) = 0xffffec;
-	}
-
 #ifdef DEBUG
   printf( "read16(%6.6x): %x [%x]\n", address, value >> 8 & 0xffff, fc );
 #endif
@@ -290,16 +287,12 @@ unsigned int ps_read_8(unsigned int address) {
 //  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
 	unsigned int value;
         while ( (l = *(gpio + 13) ) & 1 ) {} // 0x1 == PIN_TXN_IN_PROGRESS
-        if( CHECK_PIN_RESET(l) )
-                check_berr(address,1);
-        else {
-                value = *(gpio + 13);
-                *(gpio + 10) = 0xffffec;
-        }
-//  *(gpio + 10) = 0xffffec;
-  value = (value >> 8) & 0xffff;
+        value = *(gpio + 13);
+        *(gpio + 10) = 0xffffec;
+	value = (value >> 8) & 0xffff;
 
-//  check_berr(address,1);
+        if( CHECK_PIN_RESET(l) )
+		check_berr(address,1);
 #ifdef DEBUG
   printf("read8(%6.6x): %x\n", address, address & 1 ? value & 0xff : 0xff & ( value >> 8 ) );
 #endif
