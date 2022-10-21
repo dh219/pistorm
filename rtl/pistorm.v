@@ -183,14 +183,16 @@ module pistorm(
       M68K_E <= 1'b1;
   end
 
-  reg [2:0] state = 3'd0;
-  reg [2:0] PI_TXN_IN_PROGRESS_delay;
-  reg [2:0] op_fc = 3'b111;
+	reg [2:0] state = 3'd0;
+	reg [2:0] PI_TXN_IN_PROGRESS_delay;
+	reg [2:0] op_fc = 3'b111;
 
 	reg [2:0] BR_DELAY = 3'b111;
 	reg [2:0] BGK_DELAY = 3'b111;
-  
-  always @(posedge c200m) begin
+
+	reg [4:0] s4counter = 5'b11111;
+	
+	always @(posedge c200m) begin
   
 
     if (wr_rising) begin
@@ -214,6 +216,7 @@ module pistorm(
 	 
 	 BR_DELAY = { BR_DELAY[1:0], M68K_BR_n };
 	 BGK_DELAY = { BGK_DELAY[1:0], M68K_BGACK_n };
+	 
 	 
     case (state)
       3'd0: begin // S0
@@ -250,6 +253,7 @@ module pistorm(
           if (!M68K_DTACK_n || !M68K_BERR_n || (!VMA_INT && e_counter == 4'd8)) begin
             state <= 3'd4;
             PI_TXN_IN_PROGRESS_delay[2:0] <= 3'b111;
+				s4counter <= 5'd0;
           end
           else begin
             if (!M68K_VPA_n && e_counter == 4'd2) begin
@@ -260,36 +264,46 @@ module pistorm(
       end
 		
       3'd4: begin // S4
-		  PI_RESET <= M68K_BERR_n;
-        if (c7m_falling) begin
-          state <= 3'd5;
-			  LTCH_D_RD_U <= 1'b0;
-			  LTCH_D_RD_L <= 1'b0;
-        end
-      end
-
-      3'd5: begin // S5
-		if( !op_rw )
+			PI_TXN_IN_PROGRESS_delay <= {PI_TXN_IN_PROGRESS_delay[1:0],1'b0};
+			//PI_TXN_IN_PROGRESS <= PI_TXN_IN_PROGRESS_delay[2];
+			s4counter <= s4counter + 'd1;
+			PI_RESET <= M68K_BERR_n;
+			if( !op_rw )
 				PI_TXN_IN_PROGRESS <= 1'b0;
-        if (c7m_rising) begin
-          state <= 3'd7;
-        end
-      end
+			if( s4counter == 'd4 && !op_rw ) begin // gets us full speed on write
+				PI_TXN_IN_PROGRESS <= 1'b0;
+			end
+			if( s4counter == 'd7 ) begin // 5 occasional. 6 unstable. 7 seems to be OK.
+				LTCH_D_RD_U <= 1'b0;
+				LTCH_D_RD_L <= 1'b0;
+			end
+			else if (c7m_falling) begin
+				state <= 'd5;
+				s4counter <= 5'd0;
+			end
+		end
+		
+      3'd5: begin // S5
+			if (c7m_rising) begin
+				state <= 3'd7;
+				PI_TXN_IN_PROGRESS <= 1'b0;
+			end
+		end
 		
       3'd7: begin // S7
 		
-        PI_TXN_IN_PROGRESS <= 1'b0;
+			  PI_TXN_IN_PROGRESS <= 1'b0;
 
-        LTCH_D_RD_U <= 1'b1;
-        LTCH_D_RD_L <= 1'b1;
-		
-        LTCH_D_WR_OE_n <= 1'b1;
-        LTCH_A_OE_n <= 1'b1;
-        AS_INT <= 1'b1;
-		  FC_INT <= 3'b111;
-        UDS_INT <= 1'b1;
-        LDS_INT <= 1'b1;
-		  VMA_INT <= 1'b1;
+			  LTCH_D_RD_U <= 1'b1;
+			  LTCH_D_RD_L <= 1'b1;
+			
+			  LTCH_D_WR_OE_n <= 1'b1;
+			  LTCH_A_OE_n <= 1'b1;
+			  AS_INT <= 1'b1;
+			  FC_INT <= 3'b111;
+			  UDS_INT <= 1'b1;
+			  LDS_INT <= 1'b1;
+			  VMA_INT <= 1'b1;
 		  
           state <= 3'd0;
       end
