@@ -270,9 +270,6 @@ module pistorm(
 			PI_RESET <= M68K_BERR_n;
 			if( !op_rw )
 				PI_TXN_IN_PROGRESS <= 1'b0;
-			if( s4counter == 'd4 && !op_rw ) begin // gets us full speed on write
-				PI_TXN_IN_PROGRESS <= 1'b0;
-			end
 			if( s4counter == 'd7 ) begin // 5 occasional. 6 unstable. 7 seems to be OK.
 				LTCH_D_RD_U <= 1'b0;
 				LTCH_D_RD_L <= 1'b0;
@@ -304,6 +301,7 @@ module pistorm(
 			  UDS_INT <= 1'b1;
 			  LDS_INT <= 1'b1;
 			  VMA_INT <= 1'b1;
+//			  PI_RESET <= 1'b1; // need to handle resetting this?
 		  
           state <= 3'd0;
       end
