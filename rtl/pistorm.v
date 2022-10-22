@@ -166,7 +166,7 @@ module pistorm(
   end
 
   always @(posedge c200m) begin
-    //PI_RESET <= 1'b1;//reset_out ? 1'b1 : M68K_RESET_n ;//| M68K_HALT_n;
+    PI_RESET <= 1'b1;//reset_out ? 1'b1 : M68K_RESET_n ;//| M68K_HALT_n;
   end
 
   reg [3:0] e_counter = 4'd0;
@@ -237,7 +237,7 @@ module pistorm(
 		end
 		
       3'd2: begin // S2
-			PI_RESET <= 1'b1;
+//			PI_RESET <= 1'b1;
 			LTCH_D_WR_OE_n <= op_rw;
 			LTCH_A_OE_n <= 1'b0;
 			AS_INT <= 1'b0;
@@ -269,20 +269,22 @@ module pistorm(
 			PI_TXN_IN_PROGRESS_delay <= {PI_TXN_IN_PROGRESS_delay[1:0],1'b0};
 			//PI_TXN_IN_PROGRESS <= PI_TXN_IN_PROGRESS_delay[2];
 			s4counter <= s4counter + 'd1;
-			PI_RESET <= M68K_BERR_n;
+//			PI_RESET <= M68K_BERR_n;
 			if( !op_rw )
 				PI_TXN_IN_PROGRESS <= 1'b0;
-			if( s4counter == 'd7 ) begin // 5 occasional. 6 unstable. 7 seems to be OK.
+			if( !M68K_VPA_n && s4counter == 'd7 ) begin // 5 occasional. 6 unstable. 7 seems to be OK.
 				LTCH_D_RD_U <= 1'b0;
 				LTCH_D_RD_L <= 1'b0;
 			end
-			else if (c7m_falling) begin
+			if (c7m_falling) begin
 				state <= 'd5;
 				s4counter <= 5'd0;
 			end
 		end
 		
       3'd5: begin // S5
+				LTCH_D_RD_U <= 1'b0;
+				LTCH_D_RD_L <= 1'b0;
 			if (c7m_rising) begin
 				state <= 3'd7;
 				PI_TXN_IN_PROGRESS <= 1'b0;
