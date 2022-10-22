@@ -92,7 +92,8 @@ module pistorm(
   wire wr_rising = !wr_sync[1] && wr_sync[0];
 
   reg [15:0] data_out;
-  assign PI_D = PI_A == REG_STATUS && PI_RD ? data_out : 16'bz;
+//  assign PI_D = PI_A == REG_STATUS && PI_RD ? data_out : 16'bz;
+  assign PI_D = PI_RD ? ( PI_A == REG_STATUS ? data_out : ( berr_seen ? 16'hbe12 : 16'bz ) ) : 16'bz;
 
   reg berr_seen =12'b0;
   always @(posedge c200m) begin
@@ -124,6 +125,7 @@ module pistorm(
   reg BG_INT;
   reg VMA_INT;
 
+  
   always @(*) begin
     LTCH_D_WR_U <= PI_A == REG_DATA && PI_WR;
     LTCH_D_WR_L <= PI_A == REG_DATA && PI_WR;
@@ -134,7 +136,7 @@ module pistorm(
     LTCH_A_16 <= PI_A == REG_ADDR_HI && PI_WR;
     LTCH_A_24 <= PI_A == REG_ADDR_HI && PI_WR;
 
-    LTCH_D_RD_OE_n <= !(PI_A == REG_DATA && PI_RD);
+    LTCH_D_RD_OE_n <= !(PI_A == REG_DATA && PI_RD) || berr_seen;
   end
 
   reg a0;
