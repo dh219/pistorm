@@ -108,9 +108,6 @@ void ps_setup_protocol() {
 }
 
 void check_berr(uint32_t address, int mode, uint32_t value ) {
-  if( (*(gpio + 13) & (1 << PIN_RESET ) ) )
-    return;
-  printf("BERR: %p: %x\n", address, value );
   uint16_t status = ps_read_status_reg();
 	g_irq = ( (status & 0xe000) >> 13 );
   if( (status & 0x0001) && callback_berr ) {
