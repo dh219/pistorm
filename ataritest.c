@@ -161,10 +161,9 @@ int main(int argc, char *argv[]) {
 
     usleep(1500);
 
-//    write8(0xbfe201, 0x0101);       //CIA OVL
-//	write8(0xbfe001, 0x0000);       //CIA OVL LOW
-
 	fc = 0b101;
+
+	write8( 0xff8001, 0b00000100 ); // memory config 512k bank 0
 
     if (argc > 1) {
         if (strcmp(argv[1], "dumptos") == 0) {
@@ -204,14 +203,15 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-test_loop:;
-    printf("Writing garbege datas.\n");
+    printf("Writing address data.\n");
     for (uint32_t i = 0x10 ; i < test_size; i++) {
-        while(garbege_datas[i] == 0x00)
-            garbege_datas[i] = (uint8_t)(rand() % 0xFF);
+            garbege_datas[i] = i % 2 ? (i >> 8) & 0xff : i & 0xff;
         write8(i, (uint32_t)garbege_datas[i]);
     }
 
+test_loop:
+
+#if 1
     printf("Reading back garbege datas, read8()...\n");
     for (uint32_t i = 0x10 ; i < test_size; i++) {
         uint32_t c = read8(i);
@@ -225,7 +225,7 @@ test_loop:;
     total_errors += errors;
     errors = 0;
     sleep (1);
-
+#endif
     printf("Reading back garbege datas, read16(), even addresses...\n");
     for (uint32_t i = 0x10 ; i < (test_size) - 2; i += 2) {
         uint32_t c = be16toh(read16(i));
@@ -239,7 +239,7 @@ test_loop:;
     total_errors += errors;
     errors = 0;
     sleep (1);
-
+#if 1
     printf("Reading back garbege datas, read16(), odd addresses...\n");
     for (uint32_t i = 0x11; i < (test_size) - 2; i += 2) {
         uint32_t c = be16toh((read8(i) << 8) | read8(i + 1));
@@ -337,10 +337,17 @@ test_loop:;
     printf("read32 odd errors total: %d.\n", errors);
     total_errors += errors;
     errors = 0;
-
+#endif
     if (loop_tests) {
         printf ("Loop %d done. Begin loop %d.\n", cur_loop + 1, cur_loop + 2);
         printf ("Current total errors: %d.\n", total_errors);
+
+	    printf("Writing garbege datas.\n");
+	    for (uint32_t i = 0x10 ; i < test_size; i++) {
+	        garbege_datas[i] = (uint8_t)(rand() % 0xFF);
+	        write8(i, (uint32_t)garbege_datas[i]);
+	    }
+
         goto test_loop;
     }
 
