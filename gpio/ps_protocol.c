@@ -107,7 +107,10 @@ void ps_setup_protocol() {
 
 }
 
-void check_berr(uint32_t address, int mode, uint32_t value ) {
+void check_berr(uint32_t address, int mode) {
+//  if( (*(gpio + 13) & (1 << PIN_RESET ) ) )
+//    return;
+
   uint16_t status = ps_read_status_reg();
 	g_irq = ( (status & 0xe000) >> 13 );
   if( (status & 0x0001) && callback_berr ) {
@@ -121,6 +124,9 @@ void ps_write_16(unsigned int address, unsigned int data) {
 #ifdef DEBUG
   unsigned int data_orig = data & 0xffff;
 #endif
+
+// this was part of the blind-write logic
+// while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
 
   *(gpio + 0) = GPFSEL0_OUTPUT;
   *(gpio + 1) = GPFSEL1_OUTPUT;
@@ -159,9 +165,12 @@ void ps_write_16(unsigned int address, unsigned int data) {
 	}
 */
 
-	while ( (l = *(gpio + 13) ) & 0x1 ) {} // 0x1 == PIN_TXN_IN_PROGRESS
-	//concious decision to no check bus error on write for now
-	//check_berr(address,0,0x0);
+	while ( (l = *(gpio + 13) ) & 1 ) {} // 0x1 == PIN_TXN_IN_PROGRESS
+	if( CHECK_PIN_RESET(l) )
+		check_berr(address,0);
+#ifdef DEBUG
+  printf( "write16(%6.6x): %x [%d]\n", address, data_orig, fc );
+#endif
 }
 
 void ps_write_8(unsigned int address, unsigned int data) {
@@ -195,9 +204,13 @@ void ps_write_8(unsigned int address, unsigned int data) {
   *(gpio + 1) = GPFSEL1_INPUT;
   *(gpio + 2) = GPFSEL2_INPUT;
 
-	while ( (l = *(gpio + 13) ) & 0x1 ) {} // 0x1 == PIN_TXN_IN_PROGRESS
-	//concious decision to not check bus error on write for now
-        //check_berr(address,0,0x0);
+//  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
+	while ( (l = *(gpio + 13) ) & 1 ) {} // 0x1 == PIN_TXN_IN_PROGRESS
+        if( CHECK_PIN_RESET(l) )
+                check_berr(address,0);
+#ifdef DEBUG
+  printf( "write8(%6.6x): %x\n", address, data );
+#endif
 }
 
 void ps_write_32(unsigned int address, unsigned int value) {
@@ -208,7 +221,8 @@ void ps_write_32(unsigned int address, unsigned int value) {
 #define NOP asm("nop"); asm("nop");
 
 unsigned int ps_read_16(unsigned int address) {
-	static unsigned int value;
+	static unsigned int l;
+//  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
 
   *(gpio + 0) = GPFSEL0_OUTPUT;
   *(gpio + 1) = GPFSEL1_OUTPUT;
@@ -231,18 +245,23 @@ unsigned int ps_read_16(unsigned int address) {
   *(gpio + 7) = (REG_DATA << PIN_A0);
   *(gpio + 7) = 1 << PIN_RD;
 
-//	unsigned int value = 0xffffffff;
-	while (*(gpio + 13) & 0x1 ) {} // 0x1 == PIN_TXN_IN_PROGRESS
-
-  	value = *(gpio + 13) >> 8 & 0xffff;
+	unsigned int value = 0xffffffff;
+//  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
+        while ( (l = *(gpio + 13) ) & 0x1 ) {} // 0x1 == PIN_TXN_IN_PROGRESS
+  	value = *(gpio + 13);
  	*(gpio + 10) = 0xffffec;
-	if( value == 0xbe12 )
-	        check_berr(address, 1, value);
-	return value;
+        if( CHECK_PIN_RESET(l) )
+                check_berr(address,1);
+#ifdef DEBUG
+  printf( "read16(%6.6x): %x [%x]\n", address, value >> 8 & 0xffff, fc );
+#endif
+
+  return (value >> 8) & 0xffff;
 }
 
 unsigned int ps_read_8(unsigned int address) {
-        static unsigned int value;
+        static unsigned int l;
+//  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
 
   *(gpio + 0) = GPFSEL0_OUTPUT;
   *(gpio + 1) = GPFSEL1_OUTPUT;
@@ -265,11 +284,18 @@ unsigned int ps_read_8(unsigned int address) {
   *(gpio + 7) = (REG_DATA << PIN_A0);
   *(gpio + 7) = 1 << PIN_RD;
 
-        while ( *(gpio + 13) & 0x1 ) {} // 0x1 == PIN_TXN_IN_PROGRESS
-        value = *(gpio + 13) >> 8 & 0xffff;
+//  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
+	unsigned int value;
+        while ( (l = *(gpio + 13) ) & 1 ) {} // 0x1 == PIN_TXN_IN_PROGRESS
+        value = *(gpio + 13);
         *(gpio + 10) = 0xffffec;
-	if( value == 0xbe12 )
-		check_berr(address,1, value);
+	value = (value >> 8) & 0xffff;
+
+        if( CHECK_PIN_RESET(l) )
+		check_berr(address,1);
+#ifdef DEBUG
+  printf("read8(%6.6x): %x\n", address, address & 1 ? value & 0xff : 0xff & ( value >> 8 ) );
+#endif
 
   if ((address & 1) == 0)
     return (value >> 8) & 0xff;  // EVEN, A0=0,UDS
@@ -282,7 +308,7 @@ unsigned int ps_read_32(unsigned int address) {
 }
 
 void ps_write_status_reg(unsigned int value) {
-    while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
+//    while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
 
   *(gpio + 0) = GPFSEL0_OUTPUT;
   *(gpio + 1) = GPFSEL1_OUTPUT;
