@@ -108,9 +108,6 @@ void ps_setup_protocol() {
 }
 
 void check_berr(uint32_t address, int mode) {
-//  if( (*(gpio + 13) & (1 << PIN_RESET ) ) )
-//    return;
-
   uint16_t status = ps_read_status_reg();
 	g_irq = ( (status & 0xe000) >> 13 );
   if( (status & 0x0001) && callback_berr ) {
@@ -121,12 +118,6 @@ void check_berr(uint32_t address, int mode) {
 
 void ps_write_16(unsigned int address, unsigned int data) {
   static unsigned int l;
-#ifdef DEBUG
-  unsigned int data_orig = data & 0xffff;
-#endif
-
-// this was part of the blind-write logic
-// while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
 
   *(gpio + 0) = GPFSEL0_OUTPUT;
   *(gpio + 1) = GPFSEL1_OUTPUT;
@@ -153,29 +144,14 @@ void ps_write_16(unsigned int address, unsigned int data) {
   *(gpio + 0) = GPFSEL0_INPUT;
   *(gpio + 1) = GPFSEL1_INPUT;
   *(gpio + 2) = GPFSEL2_INPUT;
-/*
-	for(;;){
-		l = *(gpio + 13);
-		if( !(l & 1) )
-			break;
-		else if( !(l & 0x20) ) {
-			check_berr(address,0);
-			break;
-		}
-	}
-*/
 
 	while ( (l = *(gpio + 13) ) & 1 ) {} // 0x1 == PIN_TXN_IN_PROGRESS
 	if( CHECK_PIN_RESET(l) )
 		check_berr(address,0);
-#ifdef DEBUG
-  printf( "write16(%6.6x): %x [%d]\n", address, data_orig, fc );
-#endif
 }
 
 void ps_write_8(unsigned int address, unsigned int data) {
         static unsigned int l;
-//  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
   if ((address & 1) == 0)
     data = data + (data << 8);  // EVEN, A0=0,UDS
   else
@@ -204,13 +180,9 @@ void ps_write_8(unsigned int address, unsigned int data) {
   *(gpio + 1) = GPFSEL1_INPUT;
   *(gpio + 2) = GPFSEL2_INPUT;
 
-//  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
 	while ( (l = *(gpio + 13) ) & 1 ) {} // 0x1 == PIN_TXN_IN_PROGRESS
         if( CHECK_PIN_RESET(l) )
                 check_berr(address,0);
-#ifdef DEBUG
-  printf( "write8(%6.6x): %x\n", address, data );
-#endif
 }
 
 void ps_write_32(unsigned int address, unsigned int value) {
@@ -222,7 +194,6 @@ void ps_write_32(unsigned int address, unsigned int value) {
 
 unsigned int ps_read_16(unsigned int address) {
 	static unsigned int l;
-//  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
 
   *(gpio + 0) = GPFSEL0_OUTPUT;
   *(gpio + 1) = GPFSEL1_OUTPUT;
@@ -246,22 +217,17 @@ unsigned int ps_read_16(unsigned int address) {
   *(gpio + 7) = 1 << PIN_RD;
 
 	unsigned int value = 0xffffffff;
-//  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
         while ( (l = *(gpio + 13) ) & 0x1 ) {} // 0x1 == PIN_TXN_IN_PROGRESS
   	value = *(gpio + 13);
  	*(gpio + 10) = 0xffffec;
         if( CHECK_PIN_RESET(l) )
                 check_berr(address,1);
-#ifdef DEBUG
-  printf( "read16(%6.6x): %x [%x]\n", address, value >> 8 & 0xffff, fc );
-#endif
 
   return (value >> 8) & 0xffff;
 }
 
 unsigned int ps_read_8(unsigned int address) {
         static unsigned int l;
-//  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
 
   *(gpio + 0) = GPFSEL0_OUTPUT;
   *(gpio + 1) = GPFSEL1_OUTPUT;
@@ -284,7 +250,6 @@ unsigned int ps_read_8(unsigned int address) {
   *(gpio + 7) = (REG_DATA << PIN_A0);
   *(gpio + 7) = 1 << PIN_RD;
 
-//  while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
 	unsigned int value;
         while ( (l = *(gpio + 13) ) & 1 ) {} // 0x1 == PIN_TXN_IN_PROGRESS
         value = *(gpio + 13);
@@ -293,10 +258,6 @@ unsigned int ps_read_8(unsigned int address) {
 
         if( CHECK_PIN_RESET(l) )
 		check_berr(address,1);
-#ifdef DEBUG
-  printf("read8(%6.6x): %x\n", address, address & 1 ? value & 0xff : 0xff & ( value >> 8 ) );
-#endif
-
   if ((address & 1) == 0)
     return (value >> 8) & 0xff;  // EVEN, A0=0,UDS
   else
@@ -308,7 +269,6 @@ unsigned int ps_read_32(unsigned int address) {
 }
 
 void ps_write_status_reg(unsigned int value) {
-//    while (*(gpio + 13) & (1 << PIN_TXN_IN_PROGRESS)) {}
 
   *(gpio + 0) = GPFSEL0_OUTPUT;
   *(gpio + 1) = GPFSEL1_OUTPUT;
@@ -342,7 +302,6 @@ unsigned int ps_read_status_reg() {
 
   unsigned int value = *(gpio + 13);
   while ((value=*(gpio + 13)) & (1 << PIN_TXN_IN_PROGRESS)) {}
-  
   *(gpio + 10) = 0xffffec;
 
   return (value >> 8) & 0xffff;
