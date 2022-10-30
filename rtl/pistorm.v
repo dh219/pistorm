@@ -189,6 +189,8 @@ module pistorm(
 
 	reg [2:0] BR_DELAY = 3'b111;
 	reg [2:0] BGK_DELAY = 3'b111;
+	
+	reg [3:0] s5_counter = 4'd0;
   
   always @(posedge c200m) begin
   
@@ -267,18 +269,20 @@ module pistorm(
           state <= 3'd5;
 			  LTCH_D_RD_U <= 1'b0;
 			  LTCH_D_RD_L <= 1'b0;
+			  s5_counter <= 4'd0;
         end
       end
 
       3'd5: begin // S5
-        if (c7m_rising) begin
+		  s5_counter <= s5_counter + 4'd1;
+        if (c7m_rising || s5_counter == 4'd6 ) begin // this aborts the cycle one and a half clock periods early, but makes absolutely no difference on read speed, oddly
           state <= 3'd7;
         end
       end
 		
       3'd7: begin // S7
 		
-        PI_TXN_IN_PROGRESS <= 1'b0;
+		  PI_TXN_IN_PROGRESS <= 1'b0;
 
         LTCH_D_RD_U <= 1'b1;
         LTCH_D_RD_L <= 1'b1;
