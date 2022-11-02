@@ -6,6 +6,8 @@
 #include "input/input.h"
 #include "m68kcpu.h"
 
+#include "raylib.h"
+
 #include "platforms/amiga/Gayle.h"
 #include "platforms/amiga/amiga-registers.h"
 #include "platforms/amiga/amiga-interrupts.h"
@@ -340,7 +342,7 @@ cpu_loop:
   if (do_reset) {
     cpu_pulse_reset();
     do_reset=0;
-    usleep(1000000); // 1sec
+    usleep(4000000); // 4sec
     rtg_on=0;
 //    while(amiga_reset==0);
     printf("CPU emulation reset.\n");
@@ -717,7 +719,7 @@ switch_config:
 */
 
   // create cpu task
-/*
+
   err = pthread_create(&cpu_tid, NULL, &cpu_task, NULL);
   if (err != 0)
     printf("[ERROR] Cannot create CPU thread: [%s]", strerror(err));
@@ -725,9 +727,98 @@ switch_config:
     pthread_setname_np(cpu_tid, "pistorm: cpu");
     printf("[MAIN] CPU thread created successfully\n");
   }
-*/
 
-	cpu_task();
+//#define ATARI_GRAPHICS_CARD 1
+#ifdef ATARI_GRAPHICS_CARD
+
+    const int windowWidth = 640;
+    const int windowHeight = 480;
+
+    // Enable config flags for resizable window and vertical synchro
+    SetConfigFlags(FLAG_VSYNC_HINT);
+    InitWindow(windowWidth, windowHeight, "raylib [core] example - window scale letterbox");
+    SetWindowMinSize(320, 240);
+
+    int gameScreenWidth = 640;
+    int gameScreenHeight = 480;
+
+    // Render texture initialization, used to hold the rendering result so we can easily resize it
+    RenderTexture2D target = LoadRenderTexture(gameScreenWidth, gameScreenHeight);
+    SetTextureFilter(target.texture, TEXTURE_FILTER_BILINEAR);  // Texture scale filter to use
+
+    Color colors[10] = { 0 };
+    for (int i = 0; i < 10; i++) colors[i] = (Color){ GetRandomValue(100, 250), GetRandomValue(50, 150), GetRandomValue(10, 100), 255 };
+
+    SetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
+    //--------------------------------------------------------------------------------------
+
+	uint8_t red, green, blue;
+	uint16_t *scr = (cfg->map_data[0]);
+
+    // Main game loop
+    while (!WindowShouldClose())        // Detect window close button or ESC key
+    {
+        // Update
+        //----------------------------------------------------------------------------------
+        // Compute required framebuffer scaling
+        float scale = MIN((float)GetScreenWidth()/gameScreenWidth, (float)GetScreenHeight()/gameScreenHeight);
+
+        if (0 || IsKeyPressed(KEY_SPACE))
+        {
+            // Recalculate random colors for the bars
+            for (int i = 0; i < 10; i++) colors[i] = (Color){ GetRandomValue(100, 250), GetRandomValue(50, 150), GetRandomValue(10, 100), 255 };
+        }
+	if( IsKeyPressed(KEY_ESCAPE))
+		break;
+
+        // Apply the same transformation as the virtual mouse to the real mouse (i.e. to work with raygui)
+        //SetMouseOffset(-(GetScreenWidth() - (gameScreenWidth*scale))*0.5f, -(GetScreenHeight() - (gameScreenHeight*scale))*0.5f);
+        //SetMouseScale(1/scale, 1/scale);
+        //----------------------------------------------------------------------------------
+
+        // Draw
+        //----------------------------------------------------------------------------------
+        // Draw everything in the render texture, note this will not be rendered on screen, yet
+        BeginTextureMode(target);
+//            ClearBackground(RAYWHITE);  // Clear render texture background color
+
+	unsigned int offset = 0;
+	uint16_t pix;
+	for( int j = 0 ; j < 480 ; j++ ) {
+		for( int i = 0 ; i < 640 ; i++ ) {
+			pix = ( scr[offset] >> 8 ) | ( scr[offset] << 8 );
+			red = ( pix & 0xF800 ) >> 8 ;
+			green = ( pix & 0x07E0 ) >> 3;
+			blue = ( pix & 0x001F ) << 3;
+			DrawPixel( i, j, (Color){red,green,blue,255} );
+			offset++;
+		}
+	}
+
+//            DrawText("If executed inside a window,\nyou can resize the window,\nand see the screen scaling!", 10, 25, 20, WHITE);
+//            DrawText(TextFormat("Default Mouse: [%i , %i]", (int)mouse.x, (int)mouse.y), 350, 25, 20, GREEN);
+//            DrawText(TextFormat("Virtual Mouse: [%i , %i]", (int)virtualMouse.x, (int)virtualMouse.y), 350, 55, 20, YELLOW);
+        EndTextureMode();
+        
+        BeginDrawing();
+            ClearBackground(BLACK);     // Clear screen background
+
+            // Draw render texture to screen, properly scaled
+            DrawTexturePro(target.texture, (Rectangle){ 0.0f, 0.0f, (float)target.texture.width, (float)-target.texture.height },
+                           (Rectangle){ (GetScreenWidth() - ((float)gameScreenWidth*scale))*0.5f, (GetScreenHeight() - ((float)gameScreenHeight*scale))*0.5f,
+                           (float)gameScreenWidth*scale, (float)gameScreenHeight*scale }, (Vector2){ 0, 0 }, 0.0f, WHITE);
+        EndDrawing();
+        //--------------------------------------------------------------------------------------
+    }
+
+    // De-Initialization
+    //--------------------------------------------------------------------------------------
+    UnloadRenderTexture(target);        // Unload render texture
+
+    CloseWindow();                      // Close window and OpenGL context
+    //--------------------------------------------------------------------------------------
+
+#endif
 
   // wait for cpu task to end before closing up and finishing
   pthread_join(cpu_tid, NULL);
@@ -736,6 +827,7 @@ switch_config:
     emulator_exiting = 1;
     usleep(0);
   }
+
 
   if (load_new_config == 0)
     printf("[MAIN] All threads appear to have concluded; ending process\n");
