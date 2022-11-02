@@ -728,8 +728,9 @@ switch_config:
     printf("[MAIN] CPU thread created successfully\n");
   }
 
-//#define ATARI_GRAPHICS_CARD 1
+//#define ATARI_GRAPHICS_CARD
 #ifdef ATARI_GRAPHICS_CARD
+    if(cfg->map_data[0]) {
 
     const int windowWidth = 640;
     const int windowHeight = 480;
@@ -746,67 +747,41 @@ switch_config:
     RenderTexture2D target = LoadRenderTexture(gameScreenWidth, gameScreenHeight);
     SetTextureFilter(target.texture, TEXTURE_FILTER_BILINEAR);  // Texture scale filter to use
 
-    Color colors[10] = { 0 };
-    for (int i = 0; i < 10; i++) colors[i] = (Color){ GetRandomValue(100, 250), GetRandomValue(50, 150), GetRandomValue(10, 100), 255 };
-
     SetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
 	uint8_t red, green, blue;
-	uint16_t *scr = (cfg->map_data[0]);
+	uint16_t *src = (cfg->map_data[0]);
+	uint16_t *dst;
+
+	Image raylib_fb;
+	raylib_fb.format = PIXELFORMAT_UNCOMPRESSED_R5G6B5;
+
+	raylib_fb.width = 640;
+	raylib_fb.height = 480;
+
+	raylib_fb.mipmaps = 1;
+	raylib_fb.data = src;
+
+	Texture raylib_texture;
+	raylib_texture = LoadTextureFromImage(raylib_fb);
+
+	dst = malloc( raylib_fb.width * raylib_fb.height * 2 );
+
 
     // Main game loop
+    uint16_t *srcptr;
+    uint16_t *dstptr;
     while (!WindowShouldClose())        // Detect window close button or ESC key
     {
-        // Update
-        //----------------------------------------------------------------------------------
-        // Compute required framebuffer scaling
-        float scale = MIN((float)GetScreenWidth()/gameScreenWidth, (float)GetScreenHeight()/gameScreenHeight);
+	srcptr = src;
+	dstptr = dst;
+	for( unsigned long l = 0 ; l < ( raylib_fb.width * raylib_fb.height ) ; l++ )
+		*dstptr++ = be16toh(*srcptr++);
+        UpdateTexture(raylib_texture, dst );
 
-        if (0 || IsKeyPressed(KEY_SPACE))
-        {
-            // Recalculate random colors for the bars
-            for (int i = 0; i < 10; i++) colors[i] = (Color){ GetRandomValue(100, 250), GetRandomValue(50, 150), GetRandomValue(10, 100), 255 };
-        }
-	if( IsKeyPressed(KEY_ESCAPE))
-		break;
-
-        // Apply the same transformation as the virtual mouse to the real mouse (i.e. to work with raygui)
-        //SetMouseOffset(-(GetScreenWidth() - (gameScreenWidth*scale))*0.5f, -(GetScreenHeight() - (gameScreenHeight*scale))*0.5f);
-        //SetMouseScale(1/scale, 1/scale);
-        //----------------------------------------------------------------------------------
-
-        // Draw
-        //----------------------------------------------------------------------------------
-        // Draw everything in the render texture, note this will not be rendered on screen, yet
-        BeginTextureMode(target);
-//            ClearBackground(RAYWHITE);  // Clear render texture background color
-
-	unsigned int offset = 0;
-	uint16_t pix;
-	for( int j = 0 ; j < 480 ; j++ ) {
-		for( int i = 0 ; i < 640 ; i++ ) {
-			pix = ( scr[offset] >> 8 ) | ( scr[offset] << 8 );
-			red = ( pix & 0xF800 ) >> 8 ;
-			green = ( pix & 0x07E0 ) >> 3;
-			blue = ( pix & 0x001F ) << 3;
-			DrawPixel( i, j, (Color){red,green,blue,255} );
-			offset++;
-		}
-	}
-
-//            DrawText("If executed inside a window,\nyou can resize the window,\nand see the screen scaling!", 10, 25, 20, WHITE);
-//            DrawText(TextFormat("Default Mouse: [%i , %i]", (int)mouse.x, (int)mouse.y), 350, 25, 20, GREEN);
-//            DrawText(TextFormat("Virtual Mouse: [%i , %i]", (int)virtualMouse.x, (int)virtualMouse.y), 350, 55, 20, YELLOW);
-        EndTextureMode();
-        
         BeginDrawing();
-            ClearBackground(BLACK);     // Clear screen background
-
-            // Draw render texture to screen, properly scaled
-            DrawTexturePro(target.texture, (Rectangle){ 0.0f, 0.0f, (float)target.texture.width, (float)-target.texture.height },
-                           (Rectangle){ (GetScreenWidth() - ((float)gameScreenWidth*scale))*0.5f, (GetScreenHeight() - ((float)gameScreenHeight*scale))*0.5f,
-                           (float)gameScreenWidth*scale, (float)gameScreenHeight*scale }, (Vector2){ 0, 0 }, 0.0f, WHITE);
+		DrawTexture( raylib_texture, 0, 0, WHITE );
         EndDrawing();
         //--------------------------------------------------------------------------------------
     }
@@ -817,7 +792,7 @@ switch_config:
 
     CloseWindow();                      // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
-
+    }
 #endif
 
   // wait for cpu task to end before closing up and finishing
