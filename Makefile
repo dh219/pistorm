@@ -60,7 +60,7 @@ TARGET = $(EXENAME)$(EXE)
 DELETEFILES = $(MUSASHIGENCFILES) $(MUSASHIGENHFILES) $(.OFILES) $(.OFILES:%.o=%.d) $(TARGET) $(MUSASHIGENERATOR)$(EXE)
 
 
-all: $(MUSASHIGENCFILES) $(MUSASHIGENHFILES) $(TARGET) buptest
+all: $(MUSASHIGENCFILES) $(MUSASHIGENHFILES) $(TARGET) buptest ataritest
 
 clean:
 	rm -f $(DELETEFILES)
@@ -69,6 +69,9 @@ $(TARGET):  $(MUSAHIGENCFILES:%.c=%.o) $(.CFILES:%.c=%.o) a314/a314.o
 	$(CC) -o $@ $^ -O3 -pthread $(LFLAGS) -lm -lstdc++
 
 buptest: buptest.c gpio/ps_protocol.c
+	$(CC) $^ -o $@ -I./ -march=armv8-a -mfloat-abi=hard -mfpu=neon-fp-armv8 -O0
+
+ataritest: ataritest.c gpio/ps_protocol.c
 	$(CC) $^ -o $@ -I./ -march=armv8-a -mfloat-abi=hard -mfpu=neon-fp-armv8 -O0
 
 a314/a314.o: a314/a314.cc a314/a314.h

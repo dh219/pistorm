@@ -144,7 +144,7 @@ int check_emulator() {
 }
 
 int main(int argc, char *argv[]) {
-    uint32_t test_size = 512 * SIZE_KILO, cur_loop = 0;
+    uint32_t test_size = 1 * SIZE_KILO, cur_loop = 0;
 
     if (check_emulator()) {
         printf("PiStorm emulator running, please stop this before running buptest\n");
@@ -174,8 +174,8 @@ int main(int argc, char *argv[]) {
                 return 1;
             }
 
-            for (int i = 0; i < 256 * SIZE_KILO; i++) {
-                unsigned char in = read8(0xE00000 + i);
+            for (int i = 0; i < 192 * SIZE_KILO; i++) {
+                unsigned char in = read8(0xFC0000 + i);
                 fputc(in, out);
             }
 
@@ -186,7 +186,7 @@ int main(int argc, char *argv[]) {
 
         test_size = atoi(argv[1]) * SIZE_KILO;
         if (test_size == 0 || test_size > 2 * SIZE_MEGA) {
-            test_size = 512 * SIZE_KILO;
+            test_size = 1 * SIZE_KILO;
         }
         printf("Testing %d KB of memory.\n", test_size / SIZE_KILO);
         if (argc > 2) {
@@ -205,25 +205,32 @@ int main(int argc, char *argv[]) {
 
     printf("Writing address data.\n");
     for (uint32_t i = 0x10 ; i < test_size; i++) {
-            garbege_datas[i] = i % 2 ? (i >> 8) & 0xff : i & 0xff;
-        write8(i, (uint32_t)garbege_datas[i]);
+            garbege_datas[i] = i % 2 ? (i-1 >> 8) & 0xff : i & 0xff;
+	if( argc > 1 ) {
+	        write8(i, (uint32_t)garbege_datas[i]);
+		printf( "%lx: %.2x\n", i, garbege_datas[i] );
+	}
     }
 
 test_loop:
 
 #if 1
     printf("Reading back garbege datas, read8()...\n");
-    for (uint32_t i = 0x10 ; i < test_size; i++) {
+    for (uint32_t i = 0x10 ; i < test_size ; i++) {
         uint32_t c = read8(i);
         if (c != garbege_datas[i]) {
             if (errors < 512)
                 printf("READ8: Garbege data mismatch at $%.6X: %.2X should be %.2X.\n", i, c, garbege_datas[i]);
             errors++;
         }
+	else
+		printf("  %.6X = %.2X: OK\n", i, c );
+	usleep(10000);
     }
     printf("read8 errors total: %d.\n", errors);
     total_errors += errors;
     errors = 0;
+	exit(0);
     sleep (1);
 #endif
     printf("Reading back garbege datas, read16(), even addresses...\n");
