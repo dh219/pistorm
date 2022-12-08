@@ -206,10 +206,8 @@ int main(int argc, char *argv[]) {
     printf("Writing address data.\n");
     for (uint32_t i = 0x10 ; i < test_size; i++) {
             garbege_datas[i] = i % 2 ? (i-1 >> 8) & 0xff : i & 0xff;
-	if( argc > 1 ) {
 	        write8(i, (uint32_t)garbege_datas[i]);
 		printf( "%lx: %.2x\n", i, garbege_datas[i] );
-	}
     }
 
 test_loop:
