@@ -24,6 +24,8 @@
 #define SIZE_MEGA (1024 * 1024)
 #define SIZE_GIGA (1024 * 1024 * 1024)
 
+#define START 0x600
+
 uint8_t *garbege_datas;
 extern volatile unsigned int *gpio;
 extern uint8_t fc;
@@ -144,7 +146,7 @@ int check_emulator() {
 }
 
 int main(int argc, char *argv[]) {
-    uint32_t test_size = 1 * SIZE_KILO, cur_loop = 0;
+    uint32_t test_size = 512 * SIZE_KILO - START, cur_loop = 0;
 
     if (check_emulator()) {
         printf("PiStorm emulator running, please stop this before running buptest\n");
@@ -174,8 +176,8 @@ int main(int argc, char *argv[]) {
                 return 1;
             }
 
-            for (int i = 0; i < 192 * SIZE_KILO; i++) {
-                unsigned char in = read8(0xFC0000 + i);
+            for (int i = 0; i < 256 * SIZE_KILO; i++) {
+                unsigned char in = read8(0xE00000 + i);
                 fputc(in, out);
             }
 
@@ -204,7 +206,7 @@ int main(int argc, char *argv[]) {
     }
 
     printf("Writing address data.\n");
-    for (uint32_t i = 0x10 ; i < test_size; i++) {
+    for (uint32_t i = START ; i < test_size; i++) {
             garbege_datas[i] = i % 2 ? (i-1 >> 8) & 0xff : i & 0xff;
 	        write8(i, (uint32_t)garbege_datas[i]);
 		printf( "%lx: %.2x\n", i, garbege_datas[i] );
@@ -214,7 +216,7 @@ test_loop:
 
 #if 1
     printf("Reading back garbege datas, read8()...\n");
-    for (uint32_t i = 0x10 ; i < test_size ; i++) {
+    for (uint32_t i = START ; i < test_size ; i++) {
         uint32_t c = read8(i);
         if (c != garbege_datas[i]) {
             if (errors < 512)
@@ -228,11 +230,10 @@ test_loop:
     printf("read8 errors total: %d.\n", errors);
     total_errors += errors;
     errors = 0;
-	exit(0);
     sleep (1);
 #endif
     printf("Reading back garbege datas, read16(), even addresses...\n");
-    for (uint32_t i = 0x10 ; i < (test_size) - 2; i += 2) {
+    for (uint32_t i = START ; i < (test_size) - 2; i += 2) {
         uint32_t c = be16toh(read16(i));
         if (c != *((uint16_t *)&garbege_datas[i])) {
             if (errors < 512)
@@ -246,7 +247,7 @@ test_loop:
     sleep (1);
 #if 1
     printf("Reading back garbege datas, read16(), odd addresses...\n");
-    for (uint32_t i = 0x11; i < (test_size) - 2; i += 2) {
+    for (uint32_t i = START+1 ; i < (test_size) - 2; i += 2) {
         uint32_t c = be16toh((read8(i) << 8) | read8(i + 1));
         if (c != *((uint16_t *)&garbege_datas[i])) {
             if (errors < 512)
@@ -259,7 +260,7 @@ test_loop:
     sleep (1);
 
     printf("Reading back garbege datas, read32(), even addresses...\n");
-    for (uint32_t i = 0x10; i < (test_size) - 4; i += 2) {
+    for (uint32_t i = START ; i < (test_size) - 4; i += 2) {
         uint32_t c = be32toh(read32(i));
         if (c != *((uint32_t *)&garbege_datas[i])) {
             if (errors < 512)
@@ -273,7 +274,7 @@ test_loop:
     sleep (1);
 
     printf("Reading back garbege datas, read32(), odd addresses...\n");
-    for (uint32_t i = 0x11; i < (test_size) - 4; i += 2) {
+    for (uint32_t i = START+1 ; i < (test_size) - 4; i += 2) {
         uint32_t c = read8(i);
         c |= (be16toh(read16(i + 1)) << 8);
         c |= (read8(i + 3) << 24);
@@ -289,12 +290,12 @@ test_loop:
     sleep (1);
 
     printf("Clearing %d KB of Chip again\n", test_size / SIZE_KILO);
-    for (uint32_t i = 0x10; i < test_size; i++) {
+    for (uint32_t i = START ; i < test_size; i++) {
         write8(i, (uint32_t)0x0);
     }
 
     printf("[WORD] Writing garbege datas to Chip, unaligned...\n");
-    for (uint32_t i = 0x11; i < (test_size) - 2; i += 2) {
+    for (uint32_t i = START+1 ; i < (test_size) - 2; i += 2) {
         uint16_t v = *((uint16_t *)&garbege_datas[i]);
         write8(i, (v & 0x00FF));
         write8(i + 1, (v >> 8));
@@ -302,7 +303,7 @@ test_loop:
 
     sleep (1);
     printf("Reading back garbege datas, read16(), odd addresses...\n");
-    for (uint32_t i = 0x11; i < (test_size) - 2; i += 2) {
+    for (uint32_t i = START+1 ; i < (test_size) - 2; i += 2) {
         uint32_t c = be16toh((read8(i) << 8) | read8(i + 1));
         if (c != *((uint16_t *)&garbege_datas[i])) {
             if (errors < 512)
@@ -315,12 +316,12 @@ test_loop:
     errors = 0;
 
     printf("Clearing %d KB of Chip again\n", test_size / SIZE_KILO);
-    for (uint32_t i = 0x10; i < test_size; i++) {
+    for (uint32_t i = START ; i < test_size; i++) {
         write8(i, (uint32_t)0x0);
     }
 
     printf("[LONG] Writing garbege datas to Chip, unaligned...\n");
-    for (uint32_t i = 0x11; i < (test_size) - 4; i += 4) {
+    for (uint32_t i = START+1 ; i < (test_size) - 4; i += 4) {
         uint32_t v = *((uint32_t *)&garbege_datas[i]);
         write8(i , v & 0x0000FF);
         write16(i + 1, htobe16(((v & 0x00FFFF00) >> 8)));
@@ -329,7 +330,7 @@ test_loop:
 
     sleep (1);
     printf("Reading back garbege datas, read32(), odd addresses...\n");
-    for (uint32_t i = 0x11; i < (test_size) - 4; i += 4) {
+    for (uint32_t i = START ; i < (test_size) - 4; i += 4) {
         uint32_t c = read8(i);
         c |= (be16toh(read16(i + 1)) << 8);
         c |= (read8(i + 3) << 24);
@@ -348,7 +349,7 @@ test_loop:
         printf ("Current total errors: %d.\n", total_errors);
 
 	    printf("Writing garbege datas.\n");
-	    for (uint32_t i = 0x10 ; i < test_size; i++) {
+	    for (uint32_t i = START ; i < test_size; i++) {
 	        garbege_datas[i] = (uint8_t)(rand() % 0xFF);
 	        write8(i, (uint32_t)garbege_datas[i]);
 	    }
