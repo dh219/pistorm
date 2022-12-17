@@ -94,7 +94,7 @@ module pistorm(
   reg [15:0] data_out;
   assign PI_D = PI_A == REG_STATUS && PI_RD ? data_out : 16'bz;
 
-  reg berr_seen =12'b0;
+  reg berr_seen = 1'b0;
   always @(posedge c200m) begin
 	 if( !M68K_BERR_n ) begin
 		berr_seen <= 1'b1;
@@ -190,7 +190,6 @@ module pistorm(
 	reg [2:0] BR_DELAY = 3'b111;
 	reg [2:0] BGK_DELAY = 3'b111;
 	
-	reg [3:0] s5_counter = 4'd0;
   
   always @(posedge c200m) begin
   
@@ -222,8 +221,6 @@ module pistorm(
         RW_INT <= 1'b1; // S7 -> S0
 		  BG_INT <= 1'b1;
 		  FC_INT <= 3'b101;
-		  LTCH_D_RD_U <= 1'b1;
-		  LTCH_D_RD_L <= 1'b1;
 		  if( BR_DELAY[2:1] == 2'b00 )
 				BG_INT <= 1'b0;
 		  else if( op_req && M68K_BGACK_n && BGK_DELAY[2] ) begin
@@ -234,11 +231,13 @@ module pistorm(
 		end
 		
       3'd2: begin // S2
-			PI_RESET <= 1'b1;
+
+		  PI_RESET <= 1'b1;
 			LTCH_D_WR_OE_n <= op_rw;
 			LTCH_A_OE_n <= 1'b0;
 			AS_INT <= 1'b0;
 			FC_INT <= op_fc;
+			RW_INT <= op_rw;
 			UDS_INT <= op_uds_n;
 			LDS_INT <= op_lds_n;
 			if (c7m_falling) begin
@@ -262,30 +261,34 @@ module pistorm(
       end
 		
       3'd4: begin // S4
+		  LTCH_D_RD_U <= 1'b1;	// start following data
+		  LTCH_D_RD_L <= 1'b1;
 			if( !op_rw )
 				PI_TXN_IN_PROGRESS <= 1'b0;
 		  PI_RESET <= M68K_BERR_n;
         if (c7m_falling) begin
           state <= 3'd5;
-			  LTCH_D_RD_U <= 1'b0;
-			  LTCH_D_RD_L <= 1'b0;
-			  s5_counter <= 4'd0;
         end
       end
 
       3'd5: begin // S5
-		  s5_counter <= s5_counter + 4'd1;
-        if (c7m_rising || s5_counter == 4'd6 ) begin // this aborts the cycle one and a half clock periods early, but makes absolutely no difference on read speed, oddly
-          state <= 3'd7;
+        if (c7m_rising ) begin
+          state <= 3'd6;
         end
       end
-		
+      3'd6: begin // S6
+        if (c7m_falling) begin
+          VMA_INT <= 1'b1;
+          state <= 3'd7;
+        end
+      end		
+
       3'd7: begin // S7
 		
 		  PI_TXN_IN_PROGRESS <= 1'b0;
+		  LTCH_D_RD_U <= 1'b0;	// latch data
+		  LTCH_D_RD_L <= 1'b0;
 
-        LTCH_D_RD_U <= 1'b1;
-        LTCH_D_RD_L <= 1'b1;
 		
         LTCH_D_WR_OE_n <= 1'b1;
         LTCH_A_OE_n <= 1'b1;
