@@ -251,9 +251,10 @@ unsigned int ps_read_8(unsigned int address) {
   *(gpio + 7) = 1 << PIN_RD;
 
 	unsigned int value;
-        while ( (l = *(gpio + 13) ) & 1 ) {} // 0x1 == PIN_TXN_IN_PROGRESS
+        while ( ( l = *(gpio + 13) ) & 1 ) {} // 0x1 == PIN_TXN_IN_PROGRESS
         value = *(gpio + 13);
         *(gpio + 10) = 0xffffec;
+
 	value = (value >> 8) & 0xffff;
 
         if( CHECK_PIN_RESET(l) )
