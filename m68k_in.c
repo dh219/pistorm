@@ -9361,6 +9361,8 @@ M68KMAKE_OP(rte, 32, ., .)
 			m68ki_jump(state, new_pc);
 			m68ki_set_sr(state, new_sr);
 
+//			printf("RTE_000: new_sr: %x, new_pc: %x\n", new_sr, new_pc );
+
 			CPU_INSTR_MODE = INSTRUCTION_YES;
 			CPU_RUN_MODE = RUN_MODE_NORMAL;
 

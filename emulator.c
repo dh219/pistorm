@@ -305,10 +305,12 @@ cpu_loop:
   if (realtime_disassembly && (do_disasm || cpu_emulation_running)) {
 
     m68k_disassemble(disasm_buf, m68k_get_reg(NULL, M68K_REG_PC), cpu_type);
+/*
     printf("REGA: 0:$%.8X 1:$%.8X 2:$%.8X 3:$%.8X 4:$%.8X 5:$%.8X 6:$%.8X 7:$%.8X\n", m68k_get_reg(NULL, M68K_REG_A0), m68k_get_reg(NULL, M68K_REG_A1), m68k_get_reg(NULL, M68K_REG_A2), m68k_get_reg(NULL, M68K_REG_A3), \
             m68k_get_reg(NULL, M68K_REG_A4), m68k_get_reg(NULL, M68K_REG_A5), m68k_get_reg(NULL, M68K_REG_A6), m68k_get_reg(NULL, M68K_REG_A7));
     printf("REGD: 0:$%.8X 1:$%.8X 2:$%.8X 3:$%.8X 4:$%.8X 5:$%.8X 6:$%.8X 7:$%.8X\n", m68k_get_reg(NULL, M68K_REG_D0), m68k_get_reg(NULL, M68K_REG_D1), m68k_get_reg(NULL, M68K_REG_D2), m68k_get_reg(NULL, M68K_REG_D3), \
             m68k_get_reg(NULL, M68K_REG_D4), m68k_get_reg(NULL, M68K_REG_D5), m68k_get_reg(NULL, M68K_REG_D6), m68k_get_reg(NULL, M68K_REG_D7));
+*/
     printf("%.8X (%.8X)]] %s\n", m68k_get_reg(NULL, M68K_REG_PC), (m68k_get_reg(NULL, M68K_REG_PC) & 0xFFFFFF), disasm_buf);
     if (do_disasm)
       do_disasm--;
@@ -882,6 +884,7 @@ static inline uint32_t ps_read(uint8_t type, uint32_t addr) {
       result = ps_read_32(addr);
       break;
   }
+//  printf("read: (%x): %x\n", addr, result );
   return result;
 }
 
@@ -902,9 +905,6 @@ static inline void ps_write(uint8_t type, uint32_t addr, uint32_t val) {
 
 
 unsigned int cpu_irq_ack(int level) {
-  if( level == 2 || level == 4 ) { // autovectors
-  	return 24 + level;
-  }
   DEBUG("cpu_irq_ack(0x%x)\n",level);
 
   //  perform ack and get vector
@@ -913,6 +913,10 @@ unsigned int cpu_irq_ack(int level) {
   DEBUG("Reading 0x%x\n", ack );
   uint16_t vec = ( ps_read(OP_TYPE_WORD, ack) ) & 0xff; // despite reading 16 bits, only the lower 8 are the vector
   DEBUG("vector returned: 0x%x\n", vec );
+
+  if( level == 2 || level == 4 ) { // autovectors
+  	return 24 + level;
+  }
   return vec;
 }
 
