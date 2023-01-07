@@ -215,6 +215,7 @@ module pistorm(
 	 
 	 BR_DELAY = { BR_DELAY[1:0], M68K_BR_n };
 	 BGK_DELAY = { BGK_DELAY[1:0], M68K_BGACK_n };
+	 BG_INT = 1'b1;
 	 
 	 /*
     case (state)
@@ -305,7 +306,10 @@ module pistorm(
       end
 
       3'd1: begin // S1
-        if (op_req) begin
+		  if( BR_DELAY[2:1] == 2'b00 )
+				BG_INT <= 1'b0;
+		  else if( op_req && M68K_BGACK_n && BGK_DELAY[2] ) begin
+//        if (op_req) begin
           if(c7m_rising) begin
             state <= 3'd2;
           end
@@ -405,5 +409,5 @@ module pistorm(
 	assign M68K_RW = M68K_BGACK_n ? RW_INT : 1'bz;
 	assign M68K_VMA_n = M68K_BGACK_n ? VMA_INT : 1'bz;
 
-	assign M68K_BG_n = 1'b1;//BG_INT;
+	assign M68K_BG_n = BG_INT;
 endmodule
