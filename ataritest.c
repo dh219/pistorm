@@ -354,16 +354,22 @@ int main(int argc, char *argv[])
     }
 
     printf ( "\nATARITEST\n" );
+	if( test_size <= OFFSET ) {
+		printf("Test size is too small -- nothing to do!\n");
+		return 0;
+	}
+
     printf ( "Testing %d KB of memory - Starting address $%.6X\n", test_size / SIZE_KILO, OFFSET );
 
     if ( loop_tests )
         printf ( "Test looping enabled\n" );
 
-    printf ( "Priming test data.\n");
+    printf ( "Priming test data between %ld and %ld (%ld bytes test size).\n",
+	OFFSET, test_size, test_size-OFFSET );
     
     for ( uint32_t i = 0, add = OFFSET ; add < test_size; i++, add++) 
     {
-        garbege_datas [i] = add % 2 ? (add-1 >> 8) & 0xff : add & 0xff;
+	garbege_datas[i] =  add % 2 ? add-1 & 0xff : (add >> 8);
 
         write8 ( add, garbege_datas [i] );
     }
@@ -478,7 +484,7 @@ void memTest ( int direction, int type, uint32_t startAdd, uint32_t length, uint
                                     if (errors == 0)
                                         printf ( "\n" );
 
-                                    printf ( "%sData mismatch at $%.6X: %.2X should be %.2X.\n", testStr, add, d8, garbagePtr [n] );
+                                    printf ( "%sData mismatch at $%.6X: %.2X expected, found %.2X.\n", testStr, add, garbagePtr[n], d8 );
                                 }
 
                                 errors++;
@@ -519,7 +525,7 @@ void memTest ( int direction, int type, uint32_t startAdd, uint32_t length, uint
                                     if (errors == 0)
                                         printf ( "\n" );
 
-                                    printf ( "%sData mismatch at $%.6X: %.4X should be %.4X.\n", testStr, add, d16, (uint16_t)(garbagePtr [n] << 8 | garbagePtr [n] ) );
+                                    printf ( "%sData mismatch at $%.6X: %.4X expected, found %.4X.\n", testStr, add, d16, (uint16_t)(garbagePtr [n] << 8 | garbagePtr [n] ) );
                                 }
 
                                 errors++;
@@ -559,7 +565,7 @@ void memTest ( int direction, int type, uint32_t startAdd, uint32_t length, uint
                                     if (errors == 0)
                                         printf ( "\n" );
 
-                                    printf ( "%sData mismatch at $%.6X: %.4X should be %.4X.\n", testStr, add, d16, *( (uint16_t *) &garbagePtr [n] ) );
+                                    printf ( "%sData mismatch at $%.6X: %.4X expected, found %.4X.\n", testStr, add, d16, *( (uint16_t *) &garbagePtr [n] ) );
                                 }
 
                                 errors++;
@@ -602,7 +608,7 @@ void memTest ( int direction, int type, uint32_t startAdd, uint32_t length, uint
                                     if (errors == 0)
                                         printf ( "\n" );
 
-                                    printf ( "%sData mismatch at $%.6X: %.8X should be %.8X.\n", testStr, add, d32, *( (uint32_t *) &garbagePtr [n] ) );
+                                    printf ( "%sData mismatch at $%.6X: %.8X expected, found %.8X.\n", testStr, add, d32, *( (uint32_t *) &garbagePtr [n] ) );
                                 }
 
                                 errors++;
@@ -647,7 +653,7 @@ void memTest ( int direction, int type, uint32_t startAdd, uint32_t length, uint
                                     if (errors == 0)
                                         printf ( "\n" );
 
-                                    printf ( "%sData mismatch at $%.6X: %.8X should be %.8X.\n", testStr, add, d32, *( (uint32_t *) &garbagePtr [n] ) );
+                                    printf ( "%sData mismatch at $%.6X: %.8X expected, found %.8X.\n", testStr, add, d32, *( (uint32_t *) &garbagePtr [n] ) );
                                 }
 
                                 errors++;
@@ -687,7 +693,7 @@ void memTest ( int direction, int type, uint32_t startAdd, uint32_t length, uint
                             
                             rd8  = (uint8_t)  ( rand () % 0xFF );
 
-                            for ( int z = 10; z; z-- ) /* ten retries should be enough especially for small mem size */
+                            for ( int z = 10; z; z-- ) /* ten retries expected, found enough especially for small mem size */
                             {
                                 radd = (uint32_t) ( rand () % length );
 
@@ -707,7 +713,7 @@ void memTest ( int direction, int type, uint32_t startAdd, uint32_t length, uint
                                     if (errors == 0)
                                         printf ( "\n" );
 
-                                    printf ( "%sData mismatch at $%.6X: %.2X should be %.2X.\n", testStr, radd, d8, rd8 );
+                                    printf ( "%sData mismatch at $%.6X: %.2X expected, found %.2X.\n", testStr, radd, d8, rd8 );
                                 }
 
                                 errors++;
@@ -744,7 +750,7 @@ void memTest ( int direction, int type, uint32_t startAdd, uint32_t length, uint
                             
                             rd16  = (uint16_t)  ( rand () % 0xffff );
 
-                            for ( int z = 10; z; z-- ) /* ten retries should be enough especially for small mem size */
+                            for ( int z = 10; z; z-- ) /* ten retries expected, found enough especially for small mem size */
                             {
                                 radd = (uint32_t) ( rand () % length );
 
@@ -765,7 +771,7 @@ void memTest ( int direction, int type, uint32_t startAdd, uint32_t length, uint
                                     if (errors == 0)
                                         printf ( "\n" );
 
-                                    printf ( "%sData mismatch at $%.6X: %.4X should be %.4X.\n", testStr, radd, d16, rd16 );
+                                    printf ( "%sData mismatch at $%.6X: %.4X expected, found %.4X.\n", testStr, radd, d16, rd16 );
                                 }
 
                                 errors++;
@@ -802,7 +808,7 @@ void memTest ( int direction, int type, uint32_t startAdd, uint32_t length, uint
                             
                             rd32  = (uint32_t)  ( rand () % 0xffffffff );
 
-                            for ( int z = 10; z; z-- ) /* ten retries should be enough especially for small mem size */
+                            for ( int z = 10; z; z-- ) /* ten retries expected, found enough especially for small mem size */
                             {
                                 radd = (uint32_t) ( rand () % length );
 
@@ -822,7 +828,7 @@ void memTest ( int direction, int type, uint32_t startAdd, uint32_t length, uint
                                     if (errors == 0)
                                         printf ( "\n" );
 
-                                    printf ( "%sData mismatch at $%.6X: %.4X should be %.4X.\n", testStr, radd, d32, rd32 );
+                                    printf ( "%sData mismatch at $%.6X: %.4X expected, found %.4X.\n", testStr, radd, d32, rd32 );
                                 }
 
                                 errors++;
@@ -876,7 +882,7 @@ void memTest ( int direction, int type, uint32_t startAdd, uint32_t length, uint
                                 if (errors == 0)
                                     printf ( "\n" );
 
-                                printf ( "%sData mismatch at $%.6X: %.2X should be %.2X.\n", testStr, add, d8, rd8 );
+                                printf ( "%sData mismatch at $%.6X: %.2X expected, found %.2X.\n", testStr, add, d8, rd8 );
                             }
 
                             errors++;
@@ -907,7 +913,7 @@ void memTest ( int direction, int type, uint32_t startAdd, uint32_t length, uint
 
                     for ( uint32_t n = 0, add = startAdd; add < length - 2; n += 2, add += 2) 
                     {
-                        d16 = *( (uint16_t *) &garbagePtr [n] );
+                        d16 = htobe16( *( (uint16_t *) &garbagePtr [n] ) );
 
                         write16 ( add, d16 );
                         rd16 = read16  ( add );
@@ -919,7 +925,7 @@ void memTest ( int direction, int type, uint32_t startAdd, uint32_t length, uint
                                 if (errors == 0)
                                     printf ( "\n" );
 
-                                printf ( "%sData mismatch at $%.6X: %.4X should be %.4X.\n", testStr, add, d16, rd16 );
+                                printf ( "%sData mismatch at $%.6X: %.4X expected, found %.4X.\n", testStr, add, d16, rd16 );
                             }
 
                             errors++;
@@ -963,7 +969,7 @@ void memTest ( int direction, int type, uint32_t startAdd, uint32_t length, uint
                                 if (errors == 0)
                                     printf ( "\n" );
 
-                                printf ( "%sData mismatch at $%.6X: %.4X should be %.4X.\n", testStr, add, d16, rd16 );
+                                printf ( "%sData mismatch at $%.6X: %.4X expected, found %.4X.\n", testStr, add, d16, rd16 );
                             }
 
                             errors++;
@@ -1006,7 +1012,7 @@ void memTest ( int direction, int type, uint32_t startAdd, uint32_t length, uint
                                 if (errors == 0)
                                     printf ( "\n" );
 
-                                printf ( "%sData mismatch at $%.6X: %.4X should be %.4X.\n", testStr, add, d32, rd32 );
+                                printf ( "%sData mismatch at $%.6X: %.4X expected, found %.4X.\n", testStr, add, d32, rd32 );
                             }
 
                             errors++;
@@ -1054,7 +1060,7 @@ void memTest ( int direction, int type, uint32_t startAdd, uint32_t length, uint
                                 if (errors == 0)
                                     printf ( "\n" );
 
-                                printf ( "%sData mismatch at $%.6X: %.4X should be %.4X.\n", testStr, add, d32, rd32 );
+                                printf ( "%sData mismatch at $%.6X: %.4X expected, found %.4X.\n", testStr, add, d32, rd32 );
                             }
 
                             errors++;
@@ -1106,6 +1112,9 @@ void memTest ( int direction, int type, uint32_t startAdd, uint32_t length, uint
         (nanoEnd - nanoStart), 
         (( (float)calcLength / (float)(nanoEnd - nanoStart)) * 1000.0) / 1024,     /* KB/s */
         totalErrors );
+	
+	if( errors )
+		exit(1);
 }
 
 
