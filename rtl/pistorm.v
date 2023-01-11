@@ -100,7 +100,7 @@ module pistorm(
 		berr_seen <= 1'b1;
 	 end
     if (rd_rising && PI_A == REG_STATUS) begin
-      data_out <= {ipl, 12'd0, berr_seen};
+      data_out <= {ipl, 11'd0, !( M68K_RESET_n || reset_out ), berr_seen};
 		berr_seen <= 1'b0;
     end
   end
@@ -150,17 +150,21 @@ module pistorm(
   reg [2:0] ipl_1;
   reg [2:0] ipl_2;
 
+  reg [2:0] reset_d;
+  
 
   always @(posedge c200m) begin
     if (c7m_falling) begin
       ipl_1 <= ~M68K_IPL_n;
       ipl_2 <= ipl_1;
     end
-
+	 
     if (ipl_2 == ipl_1)
       ipl <= ipl_2;
+		
+	reset_d[2:1] <= { reset_d[1:0], M68K_RESET_n };
 
-    PI_IPL_ZERO <= ( ( ipl == 3'd0 ) && ( ~M68K_IPL_n == 3'd0 ) );
+    PI_IPL_ZERO <= ( ( ipl == 3'd0 ) && ( ~M68K_IPL_n == 3'd0 ) && ( reset_d != 3'b000 ) );
   end
 
 
@@ -217,86 +221,7 @@ module pistorm(
 	 BGK_DELAY = { BGK_DELAY[1:0], M68K_BGACK_n };
 	 BG_INT = 1'b1;
 	 
-	 /*
-    case (state)
-      3'd0: begin // S0
-        LTCH_D_WR_OE_n <= 1'b1;
-        RW_INT <= 1'b1; // S7 -> S0
-		  BG_INT <= 1'b1;
-		  FC_INT <= 3'b101;
-		  if( BR_DELAY[2:1] == 2'b00 )
-				BG_INT <= 1'b0;
-		  else if( op_req && M68K_BGACK_n && BGK_DELAY[2] ) begin
-				FC_INT <= op_fc;
-				RW_INT <= op_rw;
-				state <= 3'd2;
-			end
-		end
-		
-      3'd2: begin // S2
-			  LTCH_D_RD_U <= 1'b0;
-			  LTCH_D_RD_L <= 1'b0;
-			PI_RESET <= 1'b1;
-			LTCH_D_WR_OE_n <= op_rw;
-			LTCH_A_OE_n <= 1'b0;
-			AS_INT <= 1'b0;
-			FC_INT <= op_fc;
-			UDS_INT <= op_uds_n;
-			LDS_INT <= op_lds_n;
-			if (c7m_falling) begin
-				state <= 3'd3;
-			end
-      end
 
-      3'd3: begin // S3
-        op_req <= 1'b0;
-        if(c7m_rising) begin
-          if (!M68K_DTACK_n || !M68K_BERR_n || (!VMA_INT && e_counter == 4'd8)) begin
-            state <= 3'd4;
-            PI_TXN_IN_PROGRESS_delay[2:0] <= 3'b111;
-          end
-          else begin
-            if (!M68K_VPA_n && e_counter == 4'd2) begin
-              VMA_INT <= 1'b0;
-            end
-          end
-        end
-      end
-		
-      3'd4: begin // S4
-			if( !op_rw )
-				PI_TXN_IN_PROGRESS <= 1'b0;
-		  PI_RESET <= M68K_BERR_n;
-        if (c7m_falling) begin
-          state <= 3'd5;
-        end
-      end
-
-      3'd5: begin // S5
-        if (c7m_rising ) begin 
-          state <= 3'd6;
-        end
-      end
-		
-      3'd6: begin
-		
-		  PI_TXN_IN_PROGRESS <= 1'b0;
-        LTCH_D_RD_U <= 1'b1;
-        LTCH_D_RD_L <= 1'b1;
-
-		
-//        LTCH_D_WR_OE_n <= 1'b1;
-        LTCH_A_OE_n <= 1'b1;
-        AS_INT <= 1'b1;
-		  FC_INT <= 3'b111;
-        UDS_INT <= 1'b1;
-        LDS_INT <= 1'b1;
-		  VMA_INT <= 1'b1;
-		  
-          state <= 3'd0;
-      end
-    endcase
-	 */
 	 
 	    case (state)
 
