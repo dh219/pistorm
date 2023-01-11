@@ -325,8 +325,17 @@ cpu_loop:
     }
   }
 
+
   if (irq) {
-    last_irq = ((ps_read_status_reg() & 0xe000) >> 13);
+    int status = ps_read_status_reg();
+    if( status & 0x2 ) {
+          printf("ST Reset is down...\n");
+          do_reset=1;
+          M68K_END_TIMESLICE;
+          irq = 0;
+    }
+
+    last_irq = ( status & 0xe000) >> 13;
     uint8_t amiga_irq = amiga_emulated_ipl();
     if (amiga_irq >= last_irq) {
         last_irq = amiga_irq;
@@ -342,11 +351,11 @@ cpu_loop:
   }
 
   if (do_reset) {
-    cpu_pulse_reset();
+//    cpu_pulse_reset(); 
     do_reset=0;
-    usleep(4000000); // 4sec
+    usleep(2000000); // 2sec -- why not?
     rtg_on=0;
-//    while(amiga_reset==0);
+    m68k_pulse_reset(state);
     printf("CPU emulation reset.\n");
   }
 
