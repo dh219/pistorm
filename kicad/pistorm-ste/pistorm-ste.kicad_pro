@@ -410,7 +410,7 @@
       "idf": "",
       "netlist": "",
       "specctra_dsn": "",
-      "step": "",
+      "step": "pistorm-ste.step",
       "vrml": ""
     },
     "page_layout_descr_file": ""
